@@ -1,0 +1,738 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0A5A31">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B7A41'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E0%A5%90%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B7A41'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E0%A5%90%3C/text%3E%3C/svg%3E">
+<style>*,*::before,*::after{box-sizing:border-box}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Om Kitty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: passbook-style hero for the selected month, ledger breakdown beside it, member register below. */
+:root{
+  --bg:#F2F7F3; --surface:#FFFFFF; --surface-2:#F7FAF8; --fg:#10241A; --muted:#55695C; --line:#D9E6DD;
+  --accent:#0B7A41; --accent-strong:#075A30; --accent-soft:#E2F2E8; --on-accent:#FFFFFF;
+  --hero:#0A5A31; --hero-2:#0E7440; --hero-fg:#F2FBF5; --hero-muted:#B9E0C8;
+  --gold:#8A5A00; --gold-soft:#FBF1D9; --warn:#A3410F; --warn-soft:#FDECE2;
+  --font-ui:"Mukta","Noto Sans Devanagari",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-num:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C1510; --surface:#13201A; --surface-2:#172720; --fg:#E4EFE8; --muted:#94AA9C; --line:#25392D;
+  --accent:#3DBB76; --accent-strong:#5ED08F; --accent-soft:#173726; --on-accent:#06170D;
+  --hero:#0E3F25; --hero-2:#145232; --hero-fg:#EAF7EF; --hero-muted:#9FD2B2;
+  --gold:#E8B54A; --gold-soft:#2E2412; --warn:#F2955F; --warn-soft:#3A2016; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0C1510; --surface:#13201A; --surface-2:#172720; --fg:#E4EFE8; --muted:#94AA9C; --line:#25392D;
+  --accent:#3DBB76; --accent-strong:#5ED08F; --accent-soft:#173726; --on-accent:#06170D;
+  --hero:#0E3F25; --hero-2:#145232; --hero-fg:#EAF7EF; --hero-muted:#9FD2B2;
+  --gold:#E8B54A; --gold-soft:#2E2412; --warn:#F2955F; --warn-soft:#3A2016; color-scheme:dark;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font-family:var(--font-ui);font-size:15px;line-height:1.5}
+.num{font-family:var(--font-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tnum{font-variant-numeric:tabular-nums}
+.hero{background:linear-gradient(135deg,var(--hero) 0%,var(--hero-2) 100%);color:var(--hero-fg)}
+.chips::-webkit-scrollbar{height:6px}.chips::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+input,select,button{font:inherit}
+.field{background:var(--surface);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:.55rem .75rem;width:100%;min-width:0}
+.field:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
+button:focus-visible,a:focus-visible,input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chk{width:22px;height:22px;accent-color:var(--accent);cursor:pointer}
+.label{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+h1,h2{text-wrap:balance}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{
+  bg:'var(--bg)',surface:'var(--surface)',surface2:'var(--surface-2)',fg:'var(--fg)',muted:'var(--muted)',line:'var(--line)',
+  accent:'var(--accent)',accentStrong:'var(--accent-strong)',accentSoft:'var(--accent-soft)',onAccent:'var(--on-accent)',
+  heroFg:'var(--hero-fg)',heroMuted:'var(--hero-muted)',gold:'var(--gold)',goldSoft:'var(--gold-soft)',warn:'var(--warn)',warnSoft:'var(--warn-soft)'
+}}},corePlugins:{preflight:true}};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+</head>
+<body>
+<div id="root"><div style="padding:40px 16px;text-align:center;color:var(--muted)">Loading Om Kitty…</div></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ---------- Kitty config ---------- */
+const CFG = { title: "Om Kitty - 2.5 Lakh", members: 25, pot: 250000, inst: 10000 };
+const PROMOTER_MONTH = 3;      // promoter takes the full pot this month, every member pays full ₹10,000
+const PROMOTER_ID = "12";      // "Owner"
+const BONUS = [{ rank: "2nd", label: "2nd Caller", amt: 500 }, { rank: "3rd", label: "3rd Caller", amt: 400 }, { rank: "4th", label: "4th Caller", amt: 200 }];
+const BONUS_TOTAL = BONUS.reduce((s, b) => s + b.amt, 0); // 1,100
+const ROUND_TO = 100;          // payable rounded up to this; the extra goes to the promoter
+const STORE_KEY = "omKitty.v1";
+
+/* ---------- Core logic (no foreman commission) ---------- */
+function calc(discountRaw, monthNo) {
+  if (Number(monthNo) === PROMOTER_MONTH) {
+    return { promoter: true, D: 0, winnerPayout: CFG.pot, dividendPot: 0, netDividend: 0, perExact: 0, payableExact: CFG.inst, perMember: 0, payable: CFG.inst, roundExtra: 0, expected: CFG.pot };
+  }
+  const D = Number(discountRaw);
+  if (!D || D <= 0) return null;
+  const winnerPayout = CFG.pot - D;
+  const dividendPot = D;
+  const netDividend = dividendPot - BONUS_TOTAL;
+  const perExact = netDividend / CFG.members;
+  const payableExact = CFG.inst - perExact;
+  const payable = Math.ceil(Math.round(payableExact * 100) / 100 / ROUND_TO) * ROUND_TO;  // round UP to nearest ₹100
+  const perMember = CFG.inst - payable;                                                      // effective dividend
+  const expected = payable * CFG.members;
+  const roundExtra = round2(expected - winnerPayout - BONUS_TOTAL);                          // goes to promoter
+  return { promoter: false, D, winnerPayout, dividendPot, netDividend, perExact, payableExact, perMember, payable, roundExtra, expected };
+}
+
+/* ---------- Formatting ---------- */
+const fmt = (n, dec = 0) => Number(n).toLocaleString("en-IN", { minimumFractionDigits: dec, maximumFractionDigits: 2 });
+const inr = (n) => (n < 0 ? "−₹" : "₹") + fmt(Math.abs(n), Number.isInteger(Math.round(Math.abs(n) * 100) / 100) ? 0 : 2);
+const rs = (n) => (n < 0 ? "-Rs. " : "Rs. ") + fmt(Math.abs(n), Number.isInteger(Math.round(Math.abs(n) * 100) / 100) ? 0 : 2);
+const round2 = (n) => Math.round(n * 100) / 100;
+
+/* ---------- Data ---------- */
+const MEMBER_NAMES = ["Gagan Mishra","Babula","Munna","Gopal Shaw","Mohan","Murari Pandiji","Pintu Kushwaha","Rajan Shukla","Umesh Ram","Rohan","Rohan II","Owner","Murari","Mahesh","Chandan Jha","Chunno","Raj Thakur","Ashish","Balmukund","Chunnu Bhaijee","Kallu","Masterji","Sachin Jha (Chunnu Bh.)","Satyam","Prahlad Jha"];
+
+function blankMembers() {
+  return MEMBER_NAMES.map((name, i) => ({ id: i + 1, name, phone: "" }));
+}
+function sampleState() {
+  return {
+    isSample: false, current: 1, members: blankMembers(),
+    months: {
+      1: { discount: "94000", winnerId: "19", callers: ["Kallu", "Rajan Shukla", "Gagan Mishra"], payments: {} },
+      [PROMOTER_MONTH]: { discount: "", winnerId: PROMOTER_ID, callers: ["", "", ""], payments: {} },
+    },
+  };
+}
+function freshState() { return { isSample: false, current: 1, members: blankMembers(), months: {} }; }
+function emptyMonth() { return { discount: "", winnerId: "", callers: ["", "", ""], payments: {} }; }
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.members) && s.members.length === CFG.members && s.months) {
+        const RENAME = { "Chunnu Baby": "Chunnu Bhaijee", "Chunnu Sala": "Sachin Jha (Chunnu Bh.)" };
+        s.members = s.members.map((x) => (RENAME[x.name] ? { ...x, name: RENAME[x.name] } : x));
+        const pm = s.months[PROMOTER_MONTH] || { discount: "", winnerId: "", callers: ["", "", ""], payments: {} };
+        if (!pm.winnerId) s.months = { ...s.months, [PROMOTER_MONTH]: { ...pm, winnerId: PROMOTER_ID } };
+        return s;
+      }
+    }
+  } catch (e) {}
+  return sampleState();
+}
+
+/* ---------- Small UI pieces ---------- */
+function Icon({ name, className = "w-5 h-5" }) {
+  const p = {
+    pot: <><path d="M4 10h16l-1.5 9a2 2 0 0 1-2 1.7H7.5a2 2 0 0 1-2-1.7L4 10Z"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></>,
+    fee: <><circle cx="12" cy="12" r="9"/><path d="M9 8h6M9 11h6M13 11c0 3-2 4-4 4l5 3"/></>,
+    gift: <><rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v7h14v-7M12 8v12M12 8c-2-4-6-3-5 0M12 8c2-4 6-3 5 0"/></>,
+    wallet: <><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h2M3 9h18"/></>,
+    search: <><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></>,
+    pdf: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5M9 14h6M9 17h4"/></>,
+    wa: <><path d="M4 20l1.3-3.9A8 8 0 1 1 8 19l-4 1Z"/><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 .8a4 4 0 0 1-1.8-1.8l.8-1-1-2L9 9.5Z"/></>,
+    copy: <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></>,
+    edit: <><path d="M4 20h4L19 9l-4-4L4 16v4Z"/></>,
+    trophy: <><path d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></>,
+    save: <><path d="M12 4v10M8 10l4 4 4-4M5 18h14"/></>,
+    upload: <><path d="M12 16V6M8 10l4-4 4 4M5 18h14"/></>,
+  }[name];
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">{p}</svg>;
+}
+
+function SummaryCard({ icon, label, hi, value, sub }) {
+  return (
+    <div className="bg-surface border border-line rounded-2xl p-4 flex flex-col gap-1 min-w-0">
+      <div className="flex items-center gap-2 text-muted">
+        <span className="w-8 h-8 rounded-full bg-accentSoft text-accent grid place-items-center shrink-0"><Icon name={icon} className="w-4 h-4" /></span>
+        <span className="text-[13px] font-semibold leading-tight">{label}<span className="block text-[12px] font-medium">{hi}</span></span>
+      </div>
+      <div className="num text-xl sm:text-2xl font-semibold mt-1 truncate">{value}</div>
+      <div className="text-[12.5px] text-muted leading-snug">{sub}</div>
+    </div>
+  );
+}
+
+function LedgerRow({ op, label, hi, value, strong, tone }) {
+  const color = tone === "gold" ? "text-gold" : tone === "warn" ? "text-warn" : "";
+  return (
+    <div className={"flex items-baseline gap-3 py-2 " + (strong ? "border-t border-line mt-1 pt-3" : "")}>
+      <span className="num w-4 text-muted text-sm shrink-0 text-center">{op}</span>
+      <span className={"flex-1 min-w-0 " + (strong ? "font-bold" : "")}>{label} <span className="text-muted text-[13px] font-normal">{hi}</span></span>
+      <span className={"num text-right " + (strong ? "font-semibold text-[17px] " : "") + color}>{value}</span>
+    </div>
+  );
+}
+
+function saveFile({ filename, data }) {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return Promise.resolve({ status: "saved" });
+}
+
+/* ---------- App ---------- */
+function App() {
+  const [state, setState] = useState(loadState);
+  const [query, setQuery] = useState("");
+  const [editMembers, setEditMembers] = useState(false);
+  const [toast, setToast] = useState("");
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [dl, setDl] = useState(null);
+  const fileRef = useRef(null);
+
+  useEffect(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }, [state]);
+  useEffect(() => {
+    let alive = true;
+    try { window.claude?.use?.("downloads")?.then((d) => alive && setDl(d)).catch(() => {}); } catch (e) {}
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2600); return () => clearTimeout(t); }, [toast]);
+
+  const m = state.current;
+  const month = state.months[m] || emptyMonth();
+  const c = calc(month.discount, m);
+  const isPromoter = m === PROMOTER_MONTH;
+  const memberById = (id) => state.members.find((x) => String(x.id) === String(id));
+
+  const updateMonth = (patch) => setState((s) => ({ ...s, months: { ...s.months, [s.current]: { ...(s.months[s.current] || emptyMonth()), ...patch } } }));
+  const setPayment = (id, patch) => setState((s) => {
+    const mo = s.months[s.current] || emptyMonth();
+    const prev = mo.payments[id] || { paid: false, amount: "" };
+    return { ...s, months: { ...s.months, [s.current]: { ...mo, payments: { ...mo.payments, [id]: { ...prev, ...patch } } } } };
+  });
+  const togglePaid = (id, paid) => {
+    const prev = month.payments[id] || {};
+    setPayment(id, { paid, amount: paid ? (prev.amount || (c ? String(round2(c.payable)) : String(CFG.inst))) : "" });
+  };
+  const updateMember = (id, patch) => setState((s) => ({ ...s, members: s.members.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+
+  /* Who has already lifted the pot, and in which month */
+  const liftedIn = useMemo(() => {
+    const map = {};
+    Object.entries(state.months).forEach(([k, v]) => { if (v.winnerId) map[v.winnerId] = Number(k); });
+    return map;
+  }, [state.months]);
+
+  /* Till-date totals */
+  const totals = useMemo(() => {
+    let auctions = 0, collected = 0, payout = 0, dividend = 0, extra = 0;
+    Object.entries(state.months).forEach(([k, v]) => {
+      const cc = calc(v.discount, k);
+      if (cc && !cc.promoter) { auctions++; payout += cc.winnerPayout; dividend += cc.perMember * CFG.members; extra += cc.roundExtra; }
+      Object.values(v.payments || {}).forEach((p) => { if (p.paid) collected += Number(p.amount) || 0; });
+    });
+    return { auctions, collected, payout, dividend, extra, bonus: auctions * BONUS_TOTAL };
+  }, [state.months]);
+
+  const paidCount = state.members.filter((x) => month.payments[x.id]?.paid).length;
+  const collectedThisMonth = state.members.reduce((s, x) => s + (month.payments[x.id]?.paid ? Number(month.payments[x.id].amount) || 0 : 0), 0);
+  const expected = c ? c.expected : CFG.inst * CFG.members;
+  const pct = Math.min(100, Math.round((collectedThisMonth / expected) * 100)) || 0;
+
+  const q = query.trim().toLowerCase();
+  const visible = state.members.filter((x) => !q || x.name.toLowerCase().includes(q) || (x.phone || "").includes(q));
+
+  const monthStatus = (k) => {
+    const v = state.months[k];
+    if (!calc(v?.discount, k)) return "empty";
+    const paid = state.members.filter((x) => v.payments?.[x.id]?.paid).length;
+    return paid === CFG.members ? "done" : "partial";
+  };
+
+  /* ---------- Share text ---------- */
+  const winner = memberById(month.winnerId);
+  const pending = state.members.filter((x) => !month.payments[x.id]?.paid);
+  const shareText = useMemo(() => {
+    const L = [];
+    L.push(`*${CFG.title}*`);
+    L.push(`Month ${m} / ${CFG.members} ka hisaab`);
+    L.push("");
+    if (c && c.promoter) {
+      L.push(`Promoter month: is mahine koi boli nahi.`);
+      L.push(`Poora pot ${inr(CFG.pot)} promoter${winner ? " (" + winner.name + ")" : ""} ko.`);
+      L.push("");
+      L.push(`*Is mahine har member ko dena hai: ${inr(CFG.inst)} (full)*`);
+    } else if (c) {
+      L.push(`Winning discount (boli): ${inr(c.D)}`);
+      L.push(`Winner: ${winner ? winner.name : "—"} · Payout ${inr(c.winnerPayout)}`);
+      L.push(`Bonus: ${BONUS.map((b, i) => `${b.rank} ${month.callers[i] || "—"} ${inr(b.amt)}`).join(", ")}`);
+      L.push(`Dividend per member (labhansh): ${inr(round2(c.perMember))}`);
+      if (c.roundExtra) L.push(`₹100 rounding ka extra ${inr(c.roundExtra)} promoter ko`);
+      L.push("");
+      L.push(`*Is mahine har member ko dena hai: ${inr(round2(c.payable))}*`);
+    } else {
+      L.push(`Boli abhi baaki hai. Installment: ${inr(CFG.inst)}`);
+    }
+    L.push(`Paid: ${paidCount}/${CFG.members}`);
+    if (pending.length && pending.length < CFG.members) L.push(`Pending: ${pending.map((x) => x.name).join(", ")}`);
+    L.push("");
+    L.push("Dhanyavaad 🙏");
+    return L.join("\n");
+  }, [m, c, winner, month.callers, paidCount, pending.length]);
+  const waHref = "https://wa.me/?text=" + encodeURIComponent(shareText);
+
+  const copyShare = async () => {
+    try { await navigator.clipboard.writeText(shareText); setToast("Message copied · WhatsApp mein paste karein"); }
+    catch (e) { setToast("Copy blocked here. Use the WhatsApp button."); }
+  };
+
+  /* ---------- PDF ---------- */
+  const exportPdf = async () => {
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const W = doc.internal.pageSize.getWidth();
+      doc.setFillColor(10, 90, 49); doc.rect(0, 0, W, 78, "F");
+      doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(18);
+      doc.text(CFG.title, 40, 38);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(11);
+      doc.text(`Month ${m} of ${CFG.members}  |  ${CFG.members} members  |  Installment ${rs(CFG.inst)}  |  Discount (bidding) kitty`, 40, 58);
+      doc.setTextColor(16, 36, 26);
+      const rows = c && c.promoter ? [
+        ["Month type", "Promoter month (no auction)"],
+        ["Pot to promoter", (winner ? winner.name + " - " : "") + rs(CFG.pot)],
+        ["Dividend / bonus", "None"],
+        ["Payable by each member", rs(CFG.inst)],
+      ] : c ? [
+        ["Full pot value", rs(CFG.pot)],
+        ["Winning discount (boli)", rs(c.D)],
+        ["Winner", winner ? winner.name : "-"],
+        ["Winner payout", rs(c.winnerPayout)],
+        ["Dividend pot (= discount)", rs(c.dividendPot)],
+        ["Total bonus", rs(BONUS_TOTAL)],
+        ["Net dividend (after bonus)", rs(c.netDividend)],
+        ["Exact payable (10,000 - net dividend / 25)", rs(round2(c.payableExact))],
+        ["Payable by each member (rounded up to 100)", rs(c.payable)],
+        ["Effective dividend per member", rs(c.perMember)],
+        ["Rounding extra to promoter", rs(c.roundExtra)],
+      ] : [["Status", "Auction not entered yet"], ["Installment", rs(CFG.inst)]];
+      doc.autoTable({ startY: 96, head: [["Month summary", "Amount"]], body: rows, theme: "grid",
+        headStyles: { fillColor: [14, 116, 64] }, styles: { fontSize: 10 }, columnStyles: { 1: { halign: "right" } }, margin: { left: 40, right: 40 } });
+      if (!isPromoter) doc.autoTable({ startY: doc.lastAutoTable.finalY + 14, head: [["Bonus", "Caller", "Amount"]],
+        body: BONUS.map((b, i) => [b.label, month.callers[i] || "-", rs(b.amt)]), theme: "grid",
+        headStyles: { fillColor: [138, 90, 0] }, styles: { fontSize: 10 }, columnStyles: { 2: { halign: "right" } }, margin: { left: 40, right: 40 } });
+      doc.autoTable({ startY: doc.lastAutoTable.finalY + 14, head: [["Sr", "Member", "Phone", "Status", "Amount paid"]],
+        body: state.members.map((x) => {
+          const p = month.payments[x.id];
+          return [x.id, x.name + (String(month.winnerId) === String(x.id) ? " (Winner)" : ""), x.phone || "-", p?.paid ? "Paid" : "Pending", p?.paid ? rs(Number(p.amount) || 0) : "-"];
+        }),
+        foot: [["", "", "", `${paidCount}/${CFG.members} paid`, rs(collectedThisMonth)]],
+        theme: "striped", headStyles: { fillColor: [14, 116, 64] }, footStyles: { fillColor: [226, 242, 232], textColor: [16, 36, 26] },
+        styles: { fontSize: 9.5 }, columnStyles: { 0: { cellWidth: 28 }, 4: { halign: "right" } }, margin: { left: 40, right: 40 } });
+      const H = doc.internal.pageSize.getHeight();
+      doc.setFontSize(8.5); doc.setTextColor(90, 105, 95);
+      doc.text(`Generated ${new Date().toLocaleString("en-IN")}`, 40, H - 24);
+      await saveFile({ filename: `Om-Kitty-Month-${m}.pdf`, data: doc.output("blob") });
+      setToast("PDF saved");
+    } catch (e) {
+      if (e && e.code === "declined") setToast("Download cancelled");
+      else setToast("PDF couldn't be created. Please try again.");
+    }
+  };
+
+  const backup = async () => {
+    try { await saveFile({ filename: "om-kitty-backup.json", data: JSON.stringify(state, null, 2) }); setToast("Backup saved"); }
+    catch (e) { setToast(e?.code === "declined" ? "Backup cancelled" : "Backup failed"); }
+  };
+  const restore = (file) => {
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const s = JSON.parse(r.result);
+        if (!Array.isArray(s.members) || s.members.length !== CFG.members || !s.months) throw new Error();
+        setState({ ...s, isSample: false }); setToast("Backup restored");
+      } catch (e) { setToast("This file isn't an Om Kitty backup."); }
+    };
+    r.readAsText(file);
+  };
+
+  const warnLow = c && !c.promoter && c.D < BONUS_TOTAL;
+  const warnHigh = c && !c.promoter && c.D >= CFG.pot;
+
+  /* ---------- Render ---------- */
+  return (
+    <div className="min-h-full">
+      {/* Header */}
+      <header className="sticky z-20 bg-surface border-b border-line" style={{ top: "env(safe-area-inset-top, 0px)" }}>
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-accent text-onAccent grid place-items-center font-extrabold text-lg shrink-0" aria-hidden="true">ॐ</div>
+          <div className="min-w-0 flex-1">
+            <h1 className="font-extrabold text-[17px] sm:text-xl leading-tight truncate">{CFG.title}</h1>
+            <p className="text-[12.5px] text-muted leading-tight">25 members · ₹10,000 kisht · Discount (boli) kitty</p>
+          </div>
+          <a href={waHref} target="_blank" rel="noopener noreferrer" className="hidden sm:inline-flex items-center gap-2 bg-accent text-onAccent px-3.5 py-2 rounded-xl font-semibold hover:opacity-90">
+            <Icon name="wa" className="w-4 h-4" /> Share
+          </a>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-5 flex flex-col gap-5">
+        {state.isSample && (
+          <div className="bg-goldSoft border border-line rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="flex-1 text-[14px]"><b>Example data.</b> Names, bids and payments below are samples so you can see how it works. Apna asli data daalne ke liye clear karein.</p>
+            {!confirmReset ? (
+              <button onClick={() => setConfirmReset(true)} className="px-4 py-2 rounded-xl bg-surface border border-line font-semibold">Start fresh</button>
+            ) : (
+              <div className="flex gap-2">
+                <button onClick={() => { setState(freshState()); setConfirmReset(false); setToast("Cleared. Add your members' names."); setEditMembers(true); }} className="px-4 py-2 rounded-xl bg-warn text-white font-semibold" style={{ color: "var(--surface)" }}>Haan, clear karo</button>
+                <button onClick={() => setConfirmReset(false)} className="px-4 py-2 rounded-xl bg-surface border border-line font-semibold">Cancel</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Summary cards */}
+        <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Summary">
+          <SummaryCard icon="pot" label="Total Pot" hi="कुल पॉट" value={inr(CFG.pot)} sub={`25 × ${inr(CFG.inst)} every month`} />
+          <SummaryCard icon="fee" label="Dividend Given" hi="लाभांश (अब तक)" value={inr(round2(totals.dividend))} sub={`Across ${totals.auctions} boli · rounding ${inr(totals.extra)} to promoter`} />
+          <SummaryCard icon="gift" label="Bonus Given" hi="बोनस (अब तक)" value={inr(totals.bonus)} sub={`${totals.auctions} months × ${inr(BONUS_TOTAL)}`} />
+          <SummaryCard icon="wallet" label="Collected Till Date" hi="कुल जमा" value={inr(totals.collected)} sub={`${totals.auctions} of ${CFG.members} months auctioned`} />
+        </section>
+
+        {/* Month selector */}
+        <section className="bg-surface border border-line rounded-2xl p-3 sm:p-4" aria-label="Month selector">
+          <div className="flex items-center justify-between gap-3 mb-2 px-1">
+            <h2 className="font-bold">Mahina chunein <span className="text-muted font-medium text-sm">· Select month</span></h2>
+            <select id="month-select" aria-label="Select month" className="field !w-auto !py-1.5 text-sm" value={m} onChange={(e) => setState((s) => ({ ...s, current: Number(e.target.value) }))}>
+              {Array.from({ length: CFG.members }, (_, i) => <option key={i} value={i + 1}>Month {i + 1}</option>)}
+            </select>
+          </div>
+          <div className="chips flex gap-2 overflow-x-auto pb-2 px-1" role="tablist">
+            {Array.from({ length: CFG.members }, (_, i) => {
+              const k = i + 1, st = monthStatus(k), active = k === m;
+              return (
+                <button key={k} role="tab" aria-selected={active} onClick={() => setState((s) => ({ ...s, current: k }))}
+                  className={"shrink-0 w-12 h-14 rounded-xl border flex flex-col items-center justify-center gap-1 transition-colors " +
+                    (active ? "bg-accent text-onAccent border-transparent" : "bg-surface2 border-line hover:border-accent")}>
+                  <span className="num text-[15px] font-semibold leading-none">{String(k).padStart(2, "0")}</span>
+                  <span className={"w-1.5 h-1.5 rounded-full " + (st === "done" ? (active ? "bg-onAccent" : "bg-accent") : st === "partial" ? "bg-gold" : "bg-line")} />
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-4 text-[12px] text-muted px-1 pt-1">
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-accent" />All paid</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gold" />Collection pending</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-line" />No boli yet</span>
+          </div>
+        </section>
+
+        {/* Hero + auction inputs */}
+        <section className="grid lg:grid-cols-5 gap-5">
+          <div className="lg:col-span-2 flex flex-col gap-5 min-w-0">
+            <div className="hero rounded-3xl p-5 sm:p-6 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-semibold tracking-wide uppercase" style={{ color: "var(--hero-muted)" }}>Month {m} / {CFG.members}</span>
+                <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.12)" }}>{paidCount}/{CFG.members} paid</span>
+              </div>
+              <p className="mt-4 text-[14px]" style={{ color: "var(--hero-muted)" }}>Is mahine har member ko dena hai</p>
+              <p className="num text-[40px] sm:text-[46px] font-semibold leading-tight">{c ? inr(round2(c.payable)) : inr(CFG.inst)}</p>
+              <p className="text-[13px]" style={{ color: "var(--hero-muted)" }}>{isPromoter ? "Promoter month · full installment, no dividend" : "Each member payable " + (c ? "after dividend" : "· boli not entered yet")}</p>
+              <div className="grid grid-cols-2 gap-3 mt-5">
+                <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,.10)" }}>
+                  <p className="text-[12px]" style={{ color: "var(--hero-muted)" }}>Dividend / member</p>
+                  <p className="num text-lg font-semibold">{c ? inr(round2(c.perMember)) : "—"}</p>
+                </div>
+                <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,.10)" }}>
+                  <p className="text-[12px]" style={{ color: "var(--hero-muted)" }}>{isPromoter ? "Promoter gets" : "Winner payout"}</p>
+                  <p className="num text-lg font-semibold">{c ? inr(c.winnerPayout) : "—"}</p>
+                </div>
+              </div>
+              <div className="mt-5">
+                <div className="flex justify-between text-[12.5px] mb-1.5" style={{ color: "var(--hero-muted)" }}>
+                  <span>Collected <b className="num" style={{ color: "var(--hero-fg)" }}>{inr(round2(collectedThisMonth))}</b></span>
+                  <span>of <span className="num">{inr(round2(expected))}</span></span>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.15)" }}>
+                  <div className="h-full rounded-full" style={{ width: pct + "%", background: "var(--hero-fg)" }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Share & export */}
+            <div className="bg-surface border border-line rounded-2xl p-4 flex flex-col gap-3">
+              <h2 className="font-bold">Share & Export <span className="text-muted font-medium text-sm">· भेजें</span></h2>
+              <div className="grid grid-cols-2 gap-2">
+                <a href={waHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold bg-accent text-onAccent hover:opacity-90">
+                  <Icon name="wa" className="w-4 h-4" /> WhatsApp
+                </a>
+                <button onClick={exportPdf} className={"inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold border border-line " + (true ? "bg-surface2 hover:border-accent" : "opacity-50 cursor-not-allowed")}>
+                  <Icon name="pdf" className="w-4 h-4" /> Export PDF
+                </button>
+                <button onClick={copyShare} className="inline-flex items-center justify-center gap-2 rounded-xl py-2 text-[14px] font-semibold border border-line bg-surface2 hover:border-accent">
+                  <Icon name="copy" className="w-4 h-4" /> Copy message
+                </button>
+                <button onClick={backup} className={"inline-flex items-center justify-center gap-2 rounded-xl py-2 text-[14px] font-semibold border border-line " + (true ? "bg-surface2 hover:border-accent" : "opacity-50 cursor-not-allowed")}>
+                  <Icon name="save" className="w-4 h-4" /> Backup data
+                </button>
+              </div>
+              <button onClick={() => fileRef.current?.click()} className="text-[13px] text-accent font-semibold self-start inline-flex items-center gap-1.5"><Icon name="upload" className="w-4 h-4" /> Restore from backup file</button>
+              <input ref={fileRef} id="restore-file" type="file" accept=".json,application/json" hidden onChange={(e) => { if (e.target.files[0]) restore(e.target.files[0]); e.target.value = ""; }} />
+              <p className="text-[12px] text-muted leading-snug">Data is saved in this browser only. Take a backup and restore it on another phone if needed.</p>
+            </div>
+          </div>
+
+          <div className="lg:col-span-3 flex flex-col gap-5 min-w-0">
+            {/* Auction inputs */}
+            {isPromoter ? (
+            <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5">
+              <h2 className="font-bold text-[17px]">Promoter month <span className="text-muted font-medium text-sm">· Month {m} · कोई बोली नहीं</span></h2>
+              <p className="mt-2 text-[14.5px]">Is mahine boli nahi hogi. Har member poora <b className="num">{inr(CFG.inst)}</b> dega aur poora pot <b className="num">{inr(CFG.pot)}</b> promoter ko jayega. No dividend, no bonus.</p>
+              <label className="flex flex-col gap-1.5 mt-4 sm:max-w-sm" htmlFor="promoter">
+                <span className="label">Promoter · प्रमोटर</span>
+                <select id="promoter" className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
+                  <option value="">Select promoter…</option>
+                  {state.members.map((x) => <option key={x.id} value={x.id}>{x.id}. {x.name}</option>)}
+                </select>
+              </label>
+            </div>
+            ) : (
+            <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5">
+              <h2 className="font-bold text-[17px]">Boli details <span className="text-muted font-medium text-sm">· Month {m} auction</span></h2>
+              <div className="grid sm:grid-cols-2 gap-4 mt-4">
+                <label className="flex flex-col gap-1.5" htmlFor="discount">
+                  <span className="label">Winning discount (₹) · सबसे ऊँची बोली</span>
+                  <input id="discount" className="field num text-lg" type="number" inputMode="numeric" min="0" step="100" placeholder="e.g. 40000"
+                    value={month.discount} onChange={(e) => updateMonth({ discount: e.target.value })} />
+                </label>
+                <label className="flex flex-col gap-1.5" htmlFor="winner">
+                  <span className="label">Winner · पॉट किसको मिला</span>
+                  <select id="winner" className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
+                    <option value="">Select winner…</option>
+                    {state.members.map((x) => {
+                      const lifted = liftedIn[x.id];
+                      const taken = lifted && lifted !== m;
+                      return <option key={x.id} value={x.id} disabled={taken}>{x.id}. {x.name}{taken ? ` (lifted M${lifted})` : ""}</option>;
+                    })}
+                  </select>
+                </label>
+                {BONUS.map((b, i) => (
+                  <label key={b.rank} className="flex flex-col gap-1.5" htmlFor={"caller-" + i}>
+                    <span className="label">{b.label} name · बोनस {inr(b.amt)}</span>
+                    <input id={"caller-" + i} className="field" list="member-names" placeholder={`${b.rank} highest bidder`}
+                      value={month.callers[i] || ""} onChange={(e) => { const cl = [...(month.callers || ["", "", ""])]; cl[i] = e.target.value; updateMonth({ callers: cl }); }} />
+                  </label>
+                ))}
+              </div>
+              <datalist id="member-names">{state.members.map((x) => <option key={x.id} value={x.name} />)}</datalist>
+              {warnLow && <p className="mt-4 text-[13.5px] bg-warnSoft text-warn rounded-xl p-3">Discount is below {inr(BONUS_TOTAL)} (total bonus), so the dividend comes out negative and members pay more than {inr(CFG.inst)}. Please check the boli amount.</p>}
+              {warnHigh && <p className="mt-4 text-[13.5px] bg-warnSoft text-warn rounded-xl p-3">Discount is too high: the winner payout would be zero or less.</p>}
+            </div>
+            )}
+
+            {/* Ledger breakdown + bonus */}
+            <div className="grid md:grid-cols-5 gap-5">
+              <div className="md:col-span-3 bg-surface border border-line rounded-2xl p-4 sm:p-5 min-w-0">
+                <h2 className="font-bold">Hisaab <span className="text-muted font-medium text-sm">· How it's calculated</span></h2>
+                {c && c.promoter ? (
+                  <div className="mt-2 text-[14.5px]">
+                    <LedgerRow op="" label="25 members × full installment" hi="" value={`25 × ${inr(CFG.inst)}`} />
+                    <LedgerRow op="=" label="Full pot to promoter" hi="प्रमोटर" value={inr(CFG.pot)} strong />
+                    <LedgerRow op="" label="Dividend / bonus" hi="" value="None" />
+                    <LedgerRow op="=" label="Payable" hi="full" value={inr(CFG.inst)} strong />
+                  </div>
+                ) : c ? (
+                  <div className="mt-2 text-[14.5px]">
+                    <LedgerRow op="" label="Full pot" hi="कुल पॉट" value={inr(CFG.pot)} />
+                    <LedgerRow op="−" label="Winning discount" hi="बोली" value={inr(c.D)} />
+                    <LedgerRow op="=" label="Winner payout" hi="" value={inr(c.winnerPayout)} strong />
+                    <div className="h-3" />
+                    <LedgerRow op="" label="Discount" hi="डिविडेंड पॉट" value={inr(c.dividendPot)} />
+                    <LedgerRow op="−" label="Total bonus" hi="" value={inr(BONUS_TOTAL)} tone="gold" />
+                    <LedgerRow op="=" label="Net dividend" hi="" value={inr(c.netDividend)} strong tone={c.netDividend < 0 ? "warn" : ""} />
+                    <LedgerRow op="÷" label="25 members" hi="" value={inr(round2(c.perExact)) + " each"} />
+                    <LedgerRow op="" label="Exact payable" hi="₹10,000 − dividend" value={inr(round2(c.payableExact))} />
+                    <LedgerRow op="=" label="Payable" hi="rounded up to ₹100" value={inr(c.payable)} strong />
+                    <LedgerRow op="+" label="Rounding extra to promoter" hi={`25 × ${inr(round2(c.payable - c.payableExact))}`} value={inr(c.roundExtra)} tone="gold" />
+                  </div>
+                ) : (
+                  <p className="mt-3 text-muted text-[14px]">Winning discount daalte hi poora hisaab yahan dikhega. Enter the winning discount to see the breakdown.</p>
+                )}
+              </div>
+              <div className="md:col-span-2 bg-surface border border-line rounded-2xl p-4 sm:p-5 min-w-0">
+                <h2 className="font-bold">Bonus list <span className="text-muted font-medium text-sm">· बोनस</span></h2>
+                {isPromoter ? <p className="mt-3 text-muted text-[14px]">Promoter month mein bonus nahi milta.</p> : (
+                <ul className="mt-3 flex flex-col gap-2">
+                  {BONUS.map((b, i) => (
+                    <li key={b.rank} className="flex items-center gap-3 bg-surface2 rounded-xl p-2.5">
+                      <span className="num w-9 h-9 rounded-full bg-goldSoft text-gold grid place-items-center text-[13px] font-semibold shrink-0">{b.rank}</span>
+                      <span className="flex-1 min-w-0 truncate">{month.callers[i] || <span className="text-muted">Not entered</span>}</span>
+                      <span className="num font-semibold text-gold">{inr(b.amt)}</span>
+                    </li>
+                  ))}
+                  <li className="flex justify-between pt-2 border-t border-line font-bold"><span>Total bonus</span><span className="num">{inr(BONUS_TOTAL)}</span></li>
+                </ul>
+                )}
+                {winner && (
+                  <div className="mt-4 flex items-center gap-3 bg-accentSoft rounded-xl p-3">
+                    <Icon name="trophy" className="w-5 h-5 text-accent shrink-0" />
+                    <div className="min-w-0"><p className="text-[12px] text-muted">{isPromoter ? "Promoter · पॉट मिला" : "Winner · पॉट मिला"}</p><p className="font-bold truncate">{winner.name}</p></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Members */}
+        <section className="bg-surface border border-line rounded-2xl" aria-label="Members">
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 border-b border-line">
+            <div className="flex-1">
+              <h2 className="font-bold text-[17px]">Members <span className="text-muted font-medium text-sm">· सदस्य · Month {m}</span></h2>
+              <p className="text-[13px] text-muted">Tick “Paid” to fill the payable amount automatically. Amount can be changed.</p>
+            </div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <label className="relative flex-1 sm:w-64" htmlFor="search">
+                <span className="sr-only">Search member</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"><Icon name="search" className="w-4 h-4" /></span>
+                <input id="search" className="field !pl-9" placeholder="Search name / naam khojein" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </label>
+              <button onClick={() => setEditMembers((v) => !v)} className={"shrink-0 inline-flex items-center gap-1.5 px-3 rounded-xl border font-semibold text-[14px] " + (editMembers ? "bg-accent text-onAccent border-transparent" : "bg-surface2 border-line")}>
+                <Icon name="edit" className="w-4 h-4" /> {editMembers ? "Done" : "Edit"}
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-[14.5px]">
+              <thead className="bg-surface2 text-left">
+                <tr className="text-muted">
+                  <th className="label px-5 py-3 w-16">Sr No</th>
+                  <th className="label px-3 py-3">Member Name</th>
+                  <th className="label px-3 py-3">Phone</th>
+                  <th className="label px-3 py-3 text-center">Paid</th>
+                  <th className="label px-5 py-3 text-right w-44">Amount Paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((x) => {
+                  const p = month.payments[x.id] || {};
+                  const isWinner = String(month.winnerId) === String(x.id);
+                  const lifted = liftedIn[x.id];
+                  return (
+                    <tr key={x.id} className="border-t border-line">
+                      <td className="px-5 py-2.5 num text-muted">{String(x.id).padStart(2, "0")}</td>
+                      <td className="px-3 py-2.5">
+                        {editMembers ? <input id={"d-name-" + x.id} aria-label="Member name" className="field !py-1.5" value={x.name} onChange={(e) => updateMember(x.id, { name: e.target.value })} /> : (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold">{x.name}</span>
+                            {isWinner && <span className="text-[11.5px] px-2 py-0.5 rounded-full bg-accentSoft text-accent font-semibold">Winner</span>}
+                            {lifted && !isWinner && <span className="text-[11.5px] px-2 py-0.5 rounded-full bg-surface2 border border-line text-muted">Lifted M{lifted}</span>}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5 num text-[13.5px]">
+                        {editMembers ? <input id={"d-phone-" + x.id} aria-label="Phone" className="field !py-1.5 num" inputMode="tel" value={x.phone} onChange={(e) => updateMember(x.id, { phone: e.target.value })} /> : (x.phone || <span className="text-muted">—</span>)}
+                      </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <input id={"d-paid-" + x.id} type="checkbox" className="chk" aria-label={"Paid: " + x.name} checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
+                      </td>
+                      <td className="px-5 py-2.5 text-right">
+                        <input id={"d-amt-" + x.id} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num text-right" type="number" inputMode="decimal" placeholder="0"
+                          value={p.amount || ""} onChange={(e) => setPayment(x.id, { amount: e.target.value, paid: e.target.value !== "" && Number(e.target.value) > 0 })} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-line bg-surface2 font-bold">
+                  <td className="px-5 py-3" colSpan={3}>Total · {paidCount}/{CFG.members} paid</td>
+                  <td></td>
+                  <td className="px-5 py-3 text-right num">{inr(round2(collectedThisMonth))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* Mobile list */}
+          <ul className="md:hidden divide-y" style={{ borderColor: "var(--line)" }}>
+            {visible.map((x) => {
+              const p = month.payments[x.id] || {};
+              const isWinner = String(month.winnerId) === String(x.id);
+              const lifted = liftedIn[x.id];
+              return (
+                <li key={x.id} className="px-4 py-3 flex flex-col gap-2 border-line">
+                  <div className="flex items-center gap-3">
+                    <span className="num w-9 h-9 rounded-full bg-surface2 border border-line grid place-items-center text-[13px] text-muted shrink-0">{String(x.id).padStart(2, "0")}</span>
+                    <div className="flex-1 min-w-0">
+                      {editMembers ? (
+                        <div className="flex flex-col gap-1.5">
+                          <input id={"m-name-" + x.id} aria-label="Member name" className="field !py-1.5" value={x.name} onChange={(e) => updateMember(x.id, { name: e.target.value })} />
+                          <input id={"m-phone-" + x.id} aria-label="Phone" className="field !py-1.5 num" inputMode="tel" placeholder="Phone" value={x.phone} onChange={(e) => updateMember(x.id, { phone: e.target.value })} />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-semibold truncate">{x.name}</span>
+                            {isWinner && <span className="text-[11px] px-2 py-0.5 rounded-full bg-accentSoft text-accent font-semibold">Winner</span>}
+                            {lifted && !isWinner && <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface2 border border-line text-muted">M{lifted}</span>}
+                          </div>
+                          <div className="num text-[12.5px] text-muted">{x.phone || "No phone"}</div>
+                        </>
+                      )}
+                    </div>
+                    <label className="flex flex-col items-center gap-0.5 shrink-0" htmlFor={"m-paid-" + x.id}>
+                      <input id={"m-paid-" + x.id} type="checkbox" className="chk" checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
+                      <span className={"text-[11px] font-semibold " + (p.paid ? "text-accent" : "text-muted")}>{p.paid ? "Paid" : "Pending"}</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2 pl-12">
+                    <span className="text-[12.5px] text-muted shrink-0">Amount ₹</span>
+                    <input id={"m-amt-" + x.id} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num" type="number" inputMode="decimal" placeholder="0"
+                      value={p.amount || ""} onChange={(e) => setPayment(x.id, { amount: e.target.value, paid: e.target.value !== "" && Number(e.target.value) > 0 })} />
+                  </div>
+                </li>
+              );
+            })}
+            <li className="px-4 py-3 bg-surface2 flex justify-between font-bold rounded-b-2xl"><span>{paidCount}/{CFG.members} paid</span><span className="num">{inr(round2(collectedThisMonth))}</span></li>
+          </ul>
+          {visible.length === 0 && <p className="p-6 text-center text-muted">“{query}” naam ka koi member nahi mila.</p>}
+        </section>
+
+        <p className="text-[12px] text-muted text-center pb-6">Formula: Winner = ₹2,50,000 − discount · Dividend = (discount − ₹1,100 bonus) ÷ 25 · Payable = ₹10,000 − dividend, rounded up to ₹100 (extra to promoter) · No foreman commission · Month {PROMOTER_MONTH}: promoter month, everyone pays full ₹10,000</p>
+      </main>
+
+      {/* Mobile sticky share */}
+      <div className="sm:hidden fixed left-0 right-0 bottom-0 z-30 bg-surface border-t border-line px-4 pt-2 flex gap-2" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}>
+        <a href={waHref} target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold bg-accent text-onAccent"><Icon name="wa" className="w-4 h-4" /> WhatsApp</a>
+        <button onClick={exportPdf} className={"flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold border border-line bg-surface2 " + (true ? "" : "opacity-50")}><Icon name="pdf" className="w-4 h-4" /> PDF</button>
+      </div>
+      <div className="sm:hidden h-20" />
+
+      {toast && (
+        <div role="status" className="fixed left-1/2 -translate-x-1/2 bottom-24 sm:bottom-6 z-40 px-4 py-2.5 rounded-xl shadow-lg text-[14px] font-semibold"
+          style={{ background: "var(--fg)", color: "var(--bg)", maxWidth: "calc(100vw - 32px)" }}>{toast}</div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+</body>
+</html>
