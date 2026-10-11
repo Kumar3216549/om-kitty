@@ -46,6 +46,7 @@ input,select,button{font:inherit}
 .field:focus{outline:2px solid var(--accent);outline-offset:0;border-color:var(--accent)}
 button:focus-visible,a:focus-visible,input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .chk{width:22px;height:22px;accent-color:var(--accent);cursor:pointer}
+.field:disabled,.chk:disabled{opacity:.6;cursor:not-allowed;background:var(--surface-2)}
 .label{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
 h1,h2{text-wrap:balance}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
@@ -155,6 +156,8 @@ function Icon({ name, className = "w-5 h-5" }) {
     trophy: <><path d="M8 4h8v5a4 4 0 0 1-8 0V4ZM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8"/></>,
     save: <><path d="M12 4v10M8 10l4 4 4-4M5 18h14"/></>,
     upload: <><path d="M12 16V6M8 10l4-4 4 4M5 18h14"/></>,
+    lock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></>,
+    unlock: <><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></>,
   }[name];
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">{p}</svg>;
 }
@@ -214,6 +217,10 @@ function App() {
   const month = state.months[m] || emptyMonth();
   const c = calc(month.discount, m);
   const isPromoter = m === PROMOTER_MONTH;
+  const locked = !!month.locked;
+  const [confirmLock, setConfirmLock] = useState(false);
+  const [confirmUnlock, setConfirmUnlock] = useState(false);
+  useEffect(() => { setConfirmLock(false); setConfirmUnlock(false); }, [m]);
   const memberById = (id) => state.members.find((x) => String(x.id) === String(id));
 
   const updateMonth = (patch) => setState((s) => ({ ...s, months: { ...s.months, [s.current]: { ...(s.months[s.current] || emptyMonth()), ...patch } } }));
@@ -226,6 +233,8 @@ function App() {
     const prev = month.payments[id] || {};
     setPayment(id, { paid, amount: paid ? (prev.amount || (c ? String(round2(c.payable)) : String(CFG.inst))) : "" });
   };
+  const closeMonth = () => { updateMonth({ locked: true, lockedAt: new Date().toISOString() }); setConfirmLock(false); setToast(`Month ${m} submit ho gaya · ab locked hai`); };
+  const reopenMonth = () => { updateMonth({ locked: false }); setConfirmUnlock(false); setToast(`Month ${m} edit ke liye khul gaya`); };
   const updateMember = (id, patch) => setState((s) => ({ ...s, members: s.members.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
 
   /* Who has already lifted the pot, and in which month */
@@ -246,10 +255,45 @@ function App() {
     return { auctions, collected, payout, dividend, extra, bonus: auctions * BONUS_TOTAL };
   }, [state.months]);
 
+  /* Consolidated report: only submitted (locked) months */
+  const report = useMemo(() => {
+    const rows = [];
+    for (let k = 1; k <= CFG.members; k++) {
+      const v = state.months[k];
+      if (!v || !v.locked) continue;
+      const cc = calc(v.discount, k);
+      if (!cc) continue;
+      const w = state.members.find((x) => String(x.id) === String(v.winnerId));
+      const collected = Object.values(v.payments || {}).reduce((t, p) => t + (p.paid ? Number(p.amount) || 0 : 0), 0);
+      rows.push({
+        k, promoter: cc.promoter, winner: w ? w.name : "—", D: cc.D, boliPct: (cc.D / CFG.pot) * 100,
+        winnerPayout: cc.winnerPayout, bonus: cc.promoter ? 0 : BONUS_TOTAL, perMember: cc.perMember,
+        divPct: (cc.perMember / CFG.inst) * 100, payable: cc.payable, extra: cc.roundExtra,
+        collected, expected: cc.expected, collPct: cc.expected ? (collected / cc.expected) * 100 : 0,
+      });
+    }
+    const auc = rows.filter((x) => !x.promoter);
+    const sum = (arr, f) => arr.reduce((t, x) => t + f(x), 0);
+    const memberPaid = sum(rows, (x) => x.payable);
+    const memberGross = rows.length * CFG.inst;
+    const promoterIncome = sum(rows, (x) => x.extra) + sum(rows.filter((x) => x.promoter), (x) => x.winnerPayout);
+    const collected = sum(rows, (x) => x.collected), expected = sum(rows, (x) => x.expected);
+    return {
+      rows, months: rows.length, auctions: auc.length,
+      totalBoli: sum(auc, (x) => x.D), avgBoliPct: auc.length ? sum(auc, (x) => x.boliPct) / auc.length : 0,
+      maxBoliPct: auc.length ? Math.max(...auc.map((x) => x.boliPct)) : 0, minBoliPct: auc.length ? Math.min(...auc.map((x) => x.boliPct)) : 0,
+      winnerPaid: sum(rows, (x) => x.winnerPayout), bonus: sum(rows, (x) => x.bonus),
+      dividendPerMember: sum(rows, (x) => x.perMember), memberPaid, memberGross,
+      savePct: memberGross ? ((memberGross - memberPaid) / memberGross) * 100 : 0,
+      promoterIncome, extra: sum(rows, (x) => x.extra), collected, expected, collPct: expected ? (collected / expected) * 100 : 0,
+    };
+  }, [state.months, state.members]);
+  const pct = (n) => (Math.round(n * 100) / 100).toFixed(2) + "%";
+
   const paidCount = state.members.filter((x) => month.payments[x.id]?.paid).length;
   const collectedThisMonth = state.members.reduce((s, x) => s + (month.payments[x.id]?.paid ? Number(month.payments[x.id].amount) || 0 : 0), 0);
   const expected = c ? c.expected : CFG.inst * CFG.members;
-  const pct = Math.min(100, Math.round((collectedThisMonth / expected) * 100)) || 0;
+  const collBarPct = Math.min(100, Math.round((collectedThisMonth / expected) * 100)) || 0;
 
   const q = query.trim().toLowerCase();
   const visible = state.members.filter((x) => !q || x.name.toLowerCase().includes(q) || (x.phone || "").includes(q));
@@ -285,13 +329,59 @@ function App() {
     } else {
       L.push(`Boli abhi baaki hai. Installment: ${inr(CFG.inst)}`);
     }
+    if (month.locked) L.push("✅ Month submitted / closed");
     L.push(`Paid: ${paidCount}/${CFG.members}`);
     if (pending.length && pending.length < CFG.members) L.push(`Pending: ${pending.map((x) => x.name).join(", ")}`);
     L.push("");
     L.push("Dhanyavaad 🙏");
     return L.join("\n");
-  }, [m, c, winner, month.callers, paidCount, pending.length]);
+  }, [m, c, winner, month.callers, month.locked, paidCount, pending.length]);
   const waHref = "https://wa.me/?text=" + encodeURIComponent(shareText);
+
+  const reportText = (() => {
+    const L = [`*${CFG.title}*`, `Consolidated Report · ${report.months} month complete`, ""];
+    report.rows.forEach((x) => L.push(x.promoter
+      ? `M${x.k}: Promoter month · ${x.winner} · ${inr(x.winnerPayout)} · sab ne ${inr(CFG.inst)}`
+      : `M${x.k}: ${x.winner} · boli ${inr(x.D)} (${pct(x.boliPct)}) · dividend ${inr(x.perMember)} (${pct(x.divPct)}) · payable ${inr(x.payable)}`));
+    L.push("");
+    L.push(`Avg boli: ${pct(report.avgBoliPct)} · Total boli ${inr(report.totalBoli)}`);
+    L.push(`Ek member ne diya: ${inr(report.memberPaid)} / ${inr(report.memberGross)} · Bachat ${inr(report.memberGross - report.memberPaid)} (${pct(report.savePct)})`);
+    L.push(`Total dividend per member: ${inr(report.dividendPerMember)}`);
+    L.push(`Collection: ${inr(round2(report.collected))} / ${inr(report.expected)} (${pct(report.collPct)})`);
+    return L.join("\n");
+  })();
+  const reportWaHref = "https://wa.me/?text=" + encodeURIComponent(reportText);
+  const exportReportPdf = async () => {
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+      const W = doc.internal.pageSize.getWidth();
+      doc.setFillColor(10, 90, 49); doc.rect(0, 0, W, 70, "F");
+      doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(18);
+      doc.text(CFG.title + " - Consolidated Report", 36, 34);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(10.5);
+      doc.text(`${report.months} of ${CFG.members} months completed  |  Installment ${rs(CFG.inst)}  |  Pot ${rs(CFG.pot)}`, 36, 54);
+      doc.setTextColor(16, 36, 26);
+      doc.autoTable({ startY: 84, theme: "grid", styles: { fontSize: 9 }, headStyles: { fillColor: [14, 116, 64] }, margin: { left: 36, right: 36 },
+        head: [["Summary", "Value", "Summary", "Value"]],
+        body: [
+          ["Average boli %", pct(report.avgBoliPct), "Total boli", rs(report.totalBoli)],
+          ["Highest / lowest boli %", pct(report.maxBoliPct) + " / " + pct(report.minBoliPct), "Total paid to winners", rs(report.winnerPaid)],
+          ["Paid by one member", rs(report.memberPaid) + " of " + rs(report.memberGross), "Member saving (margin)", rs(report.memberGross - report.memberPaid) + " (" + pct(report.savePct) + ")"],
+          ["Dividend per member (total)", rs(report.dividendPerMember), "Bonus given", rs(report.bonus)],
+          ["Promoter income", rs(report.promoterIncome), "Collection", rs(round2(report.collected)) + " of " + rs(report.expected) + " (" + pct(report.collPct) + ")"],
+        ] });
+      doc.autoTable({ startY: doc.lastAutoTable.finalY + 14, theme: "striped", styles: { fontSize: 8.5 }, headStyles: { fillColor: [14, 116, 64] }, margin: { left: 36, right: 36 },
+        head: [["Month", "Winner", "Boli", "Boli %", "Winner payout", "Bonus", "Dividend/member", "Dividend %", "Payable", "Promoter extra", "Collected", "Coll. %"]],
+        body: report.rows.map((x) => [x.k + (x.promoter ? " (P)" : ""), x.winner, x.promoter ? "-" : rs(x.D), x.promoter ? "-" : pct(x.boliPct), rs(x.winnerPayout), rs(x.bonus), rs(x.perMember), pct(x.divPct), rs(x.payable), rs(x.extra), rs(round2(x.collected)), pct(x.collPct)]),
+        foot: [["Total", "", rs(report.totalBoli), pct(report.avgBoliPct) + " avg", rs(report.winnerPaid), rs(report.bonus), rs(report.dividendPerMember), "", rs(report.memberPaid), rs(report.extra), rs(round2(report.collected)), pct(report.collPct)]],
+        footStyles: { fillColor: [226, 242, 232], textColor: [16, 36, 26] } });
+      doc.setFontSize(8.5); doc.setTextColor(90, 105, 95);
+      doc.text("(P) = Promoter month. Only submitted months are included. Generated " + new Date().toLocaleString("en-IN"), 36, doc.internal.pageSize.getHeight() - 20);
+      await saveFile({ filename: `${CFG.title.split(" - ")[0].replace(/\s+/g, "-")}-Report.pdf`, data: doc.output("blob") });
+      setToast("Report PDF saved");
+    } catch (e) { setToast("Report PDF couldn't be created."); }
+  };
 
   const copyShare = async () => {
     try { await navigator.clipboard.writeText(shareText); setToast("Message copied · WhatsApp mein paste karein"); }
@@ -421,21 +511,61 @@ function App() {
           </div>
           <div className="chips flex gap-2 overflow-x-auto pb-2 px-1" role="tablist">
             {Array.from({ length: CFG.members }, (_, i) => {
-              const k = i + 1, st = monthStatus(k), active = k === m;
+              const k = i + 1, st = monthStatus(k), active = k === m, lk = !!state.months[k]?.locked;
               return (
                 <button key={k} role="tab" aria-selected={active} onClick={() => setState((s) => ({ ...s, current: k }))}
                   className={"shrink-0 w-12 h-14 rounded-xl border flex flex-col items-center justify-center gap-1 transition-colors " +
                     (active ? "bg-accent text-onAccent border-transparent" : "bg-surface2 border-line hover:border-accent")}>
                   <span className="num text-[15px] font-semibold leading-none">{String(k).padStart(2, "0")}</span>
-                  <span className={"w-1.5 h-1.5 rounded-full " + (st === "done" ? (active ? "bg-onAccent" : "bg-accent") : st === "partial" ? "bg-gold" : "bg-line")} />
+                  {lk ? <Icon name="lock" className="w-3 h-3" /> : <span className={"w-1.5 h-1.5 rounded-full " + (st === "done" ? (active ? "bg-onAccent" : "bg-accent") : st === "partial" ? "bg-gold" : "bg-line")} />}
                 </button>
               );
             })}
           </div>
-          <div className="flex gap-4 text-[12px] text-muted px-1 pt-1">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted px-1 pt-1">
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-accent" />All paid</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gold" />Collection pending</span>
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-line" />No boli yet</span>
+            <span className="flex items-center gap-1.5"><Icon name="lock" className="w-3 h-3" />Submitted</span>
+          </div>
+        </section>
+
+        {/* Month submit / lock */}
+        <section className={"rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3 border " + (locked ? "bg-accentSoft border-transparent" : "bg-surface border-line")} aria-label="Month status">
+          <span className={"w-10 h-10 rounded-full grid place-items-center shrink-0 " + (locked ? "bg-accent text-onAccent" : "bg-surface2 text-muted border border-line")}><Icon name={locked ? "lock" : "unlock"} className="w-5 h-5" /></span>
+          <div className="flex-1 min-w-0">
+            {locked ? (
+              <>
+                <p className="font-bold">Month {m} submit ho chuka hai · Locked</p>
+                <p className="text-[13px] text-muted">{month.lockedAt ? "Submitted " + new Date(month.lockedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) + ". " : ""}Badlav karne ke liye pehle "Edit karein" dabayein.</p>
+              </>
+            ) : (
+              <>
+                <p className="font-bold">Month {m} khula hai · Entry chalu</p>
+                <p className="text-[13px] text-muted">Boli aur payment poori hone ke baad Submit dabayein. Submit ke baad is mahine mein kuch badal nahi payega.</p>
+              </>
+            )}
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {locked ? (
+              confirmUnlock ? (
+                <>
+                  <button onClick={reopenMonth} className="px-4 py-2 rounded-xl font-semibold bg-warn" style={{ color: "var(--surface)" }}>Haan, edit karo</button>
+                  <button onClick={() => setConfirmUnlock(false)} className="px-4 py-2 rounded-xl font-semibold bg-surface border border-line">Cancel</button>
+                </>
+              ) : (
+                <button onClick={() => setConfirmUnlock(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-surface border border-line"><Icon name="edit" className="w-4 h-4" /> Edit karein</button>
+              )
+            ) : !c ? (
+              <span className="text-[13px] text-muted">Submit se pehle boli daalein</span>
+            ) : confirmLock ? (
+              <>
+                <button onClick={closeMonth} className="px-4 py-2 rounded-xl font-semibold bg-accent text-onAccent">Haan, submit karo</button>
+                <button onClick={() => setConfirmLock(false)} className="px-4 py-2 rounded-xl font-semibold bg-surface border border-line">Cancel</button>
+              </>
+            ) : (
+              <button onClick={() => setConfirmLock(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-accent text-onAccent"><Icon name="lock" className="w-4 h-4" /> Submit / Month close</button>
+            )}
           </div>
         </section>
 
@@ -466,7 +596,7 @@ function App() {
                   <span>of <span className="num">{inr(round2(expected))}</span></span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.15)" }}>
-                  <div className="h-full rounded-full" style={{ width: pct + "%", background: "var(--hero-fg)" }} />
+                  <div className="h-full rounded-full" style={{ width: collBarPct + "%", background: "var(--hero-fg)" }} />
                 </div>
               </div>
             </div>
@@ -502,7 +632,7 @@ function App() {
               <p className="mt-2 text-[14.5px]">Is mahine boli nahi hogi. Har member poora <b className="num">{inr(CFG.inst)}</b> dega aur poora pot <b className="num">{inr(CFG.pot)}</b> promoter ko jayega. No dividend, no bonus.</p>
               <label className="flex flex-col gap-1.5 mt-4 sm:max-w-sm" htmlFor="promoter">
                 <span className="label">Promoter · प्रमोटर</span>
-                <select id="promoter" className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
+                <select id="promoter" disabled={locked} className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
                   <option value="">Select promoter…</option>
                   {state.members.map((x) => <option key={x.id} value={x.id}>{x.id}. {x.name}</option>)}
                 </select>
@@ -514,12 +644,12 @@ function App() {
               <div className="grid sm:grid-cols-2 gap-4 mt-4">
                 <label className="flex flex-col gap-1.5" htmlFor="discount">
                   <span className="label">Winning discount (₹) · सबसे ऊँची बोली</span>
-                  <input id="discount" className="field num text-lg" type="number" inputMode="numeric" min="0" step="100" placeholder="e.g. 40000"
+                  <input id="discount" disabled={locked} className="field num text-lg" type="number" inputMode="numeric" min="0" step="100" placeholder="e.g. 40000"
                     value={month.discount} onChange={(e) => updateMonth({ discount: e.target.value })} />
                 </label>
                 <label className="flex flex-col gap-1.5" htmlFor="winner">
                   <span className="label">Winner · पॉट किसको मिला</span>
-                  <select id="winner" className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
+                  <select id="winner" disabled={locked} className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
                     <option value="">Select winner…</option>
                     {state.members.map((x) => {
                       const lifted = liftedIn[x.id];
@@ -531,7 +661,7 @@ function App() {
                 {BONUS.map((b, i) => (
                   <label key={b.rank} className="flex flex-col gap-1.5" htmlFor={"caller-" + i}>
                     <span className="label">{b.label} name · बोनस {inr(b.amt)}</span>
-                    <input id={"caller-" + i} className="field" list="member-names" placeholder={`${b.rank} highest bidder`}
+                    <input id={"caller-" + i} disabled={locked} className="field" list="member-names" placeholder={`${b.rank} highest bidder`}
                       value={month.callers[i] || ""} onChange={(e) => { const cl = [...(month.callers || ["", "", ""])]; cl[i] = e.target.value; updateMonth({ callers: cl }); }} />
                   </label>
                 ))}
@@ -648,10 +778,10 @@ function App() {
                         {editMembers ? <input id={"d-phone-" + x.id} aria-label="Phone" className="field !py-1.5 num" inputMode="tel" value={x.phone} onChange={(e) => updateMember(x.id, { phone: e.target.value })} /> : (x.phone || <span className="text-muted">—</span>)}
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <input id={"d-paid-" + x.id} type="checkbox" className="chk" aria-label={"Paid: " + x.name} checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
+                        <input id={"d-paid-" + x.id} disabled={locked} type="checkbox" className="chk" aria-label={"Paid: " + x.name} checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
                       </td>
                       <td className="px-5 py-2.5 text-right">
-                        <input id={"d-amt-" + x.id} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num text-right" type="number" inputMode="decimal" placeholder="0"
+                        <input id={"d-amt-" + x.id} disabled={locked} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num text-right" type="number" inputMode="decimal" placeholder="0"
                           value={p.amount || ""} onChange={(e) => setPayment(x.id, { amount: e.target.value, paid: e.target.value !== "" && Number(e.target.value) > 0 })} />
                       </td>
                     </tr>
@@ -696,13 +826,13 @@ function App() {
                       )}
                     </div>
                     <label className="flex flex-col items-center gap-0.5 shrink-0" htmlFor={"m-paid-" + x.id}>
-                      <input id={"m-paid-" + x.id} type="checkbox" className="chk" checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
+                      <input id={"m-paid-" + x.id} disabled={locked} type="checkbox" className="chk" checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
                       <span className={"text-[11px] font-semibold " + (p.paid ? "text-accent" : "text-muted")}>{p.paid ? "Paid" : "Pending"}</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-2 pl-12">
                     <span className="text-[12.5px] text-muted shrink-0">Amount ₹</span>
-                    <input id={"m-amt-" + x.id} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num" type="number" inputMode="decimal" placeholder="0"
+                    <input id={"m-amt-" + x.id} disabled={locked} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num" type="number" inputMode="decimal" placeholder="0"
                       value={p.amount || ""} onChange={(e) => setPayment(x.id, { amount: e.target.value, paid: e.target.value !== "" && Number(e.target.value) > 0 })} />
                   </div>
                 </li>
@@ -711,6 +841,73 @@ function App() {
             <li className="px-4 py-3 bg-surface2 flex justify-between font-bold rounded-b-2xl"><span>{paidCount}/{CFG.members} paid</span><span className="num">{inr(round2(collectedThisMonth))}</span></li>
           </ul>
           {visible.length === 0 && <p className="p-6 text-center text-muted">“{query}” naam ka koi member nahi mila.</p>}
+        </section>
+
+        {/* Consolidated report */}
+        <section className="bg-surface border border-line rounded-2xl" aria-label="Consolidated report">
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 border-b border-line">
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-[17px]">Consolidated Report <span className="text-muted font-medium text-sm">· समेकित रिपोर्ट</span></h2>
+              <p className="text-[13px] text-muted">Sirf submit (locked) mahine · {report.months} of {CFG.members} complete</p>
+            </div>
+            {report.months > 0 && (
+              <div className="flex gap-2">
+                <a href={reportWaHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold bg-accent text-onAccent"><Icon name="wa" className="w-4 h-4" /> Report</a>
+                <button onClick={exportReportPdf} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border border-line bg-surface2 hover:border-accent"><Icon name="pdf" className="w-4 h-4" /> Report PDF</button>
+              </div>
+            )}
+          </div>
+          {report.months === 0 ? (
+            <p className="p-6 text-center text-muted text-[14px]">Abhi koi mahina submit nahi hua. Mahine ka hisaab poora karke "Submit / Month close" dabayein, report yahan banegi.</p>
+          ) : (
+            <>
+              <div className="p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Avg boli %</p><p className="num text-xl font-semibold">{pct(report.avgBoliPct)}</p><p className="text-[12px] text-muted">High {pct(report.maxBoliPct)} · Low {pct(report.minBoliPct)}</p></div>
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Member margin (bachat)</p><p className="num text-xl font-semibold text-accent">{pct(report.savePct)}</p><p className="text-[12px] text-muted">Diya {inr(report.memberPaid)} of {inr(report.memberGross)}</p></div>
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Dividend / member</p><p className="num text-xl font-semibold">{inr(report.dividendPerMember)}</p><p className="text-[12px] text-muted">Total boli {inr(report.totalBoli)}</p></div>
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Collection</p><p className="num text-xl font-semibold">{pct(report.collPct)}</p><p className="text-[12px] text-muted">{inr(round2(report.collected))} of {inr(report.expected)}</p></div>
+              </div>
+              <div className="overflow-x-auto border-t border-line">
+                <table className="w-full text-[13.5px] tnum">
+                  <thead className="bg-surface2 text-left">
+                    <tr>
+                      {["Month", "Winner", "Boli", "Boli %", "Winner payout", "Dividend / member", "Dividend %", "Payable", "Promoter extra", "Collected"].map((h) => <th key={h} className="label px-3 py-2.5 whitespace-nowrap">{h}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.rows.map((x) => (
+                      <tr key={x.k} className="border-t border-line">
+                        <td className="px-3 py-2 num whitespace-nowrap">M{x.k}{x.promoter && <span className="ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full bg-goldSoft text-gold font-sans font-semibold">Promoter</span>}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-semibold">{x.winner}</td>
+                        <td className="px-3 py-2 num text-right whitespace-nowrap">{x.promoter ? "—" : inr(x.D)}</td>
+                        <td className="px-3 py-2 num text-right">{x.promoter ? "—" : pct(x.boliPct)}</td>
+                        <td className="px-3 py-2 num text-right whitespace-nowrap">{inr(x.winnerPayout)}</td>
+                        <td className="px-3 py-2 num text-right whitespace-nowrap">{inr(x.perMember)}</td>
+                        <td className="px-3 py-2 num text-right text-accent">{pct(x.divPct)}</td>
+                        <td className="px-3 py-2 num text-right whitespace-nowrap">{inr(x.payable)}</td>
+                        <td className="px-3 py-2 num text-right text-gold">{inr(x.extra)}</td>
+                        <td className="px-3 py-2 num text-right whitespace-nowrap">{inr(round2(x.collected))} <span className="text-muted text-[12px]">({pct(x.collPct)})</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-line bg-surface2 font-bold">
+                      <td className="px-3 py-2.5" colSpan={2}>Total · {report.months} months</td>
+                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(report.totalBoli)}</td>
+                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{pct(report.avgBoliPct)} avg</td>
+                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(report.winnerPaid)}</td>
+                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(report.dividendPerMember)}</td>
+                      <td className="px-3 py-2.5 num text-right text-accent">{pct(report.savePct)}</td>
+                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(report.memberPaid)}</td>
+                      <td className="px-3 py-2.5 num text-right text-gold whitespace-nowrap">{inr(report.extra)}</td>
+                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(round2(report.collected))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="px-4 sm:px-5 py-3 text-[12px] text-muted border-t border-line">Boli % = boli ÷ pot · Dividend % = dividend ÷ ₹10,000 kisht · Member margin = (kul kisht − asal diya) ÷ kul kisht · Promoter income ab tak: <b className="num">{inr(report.promoterIncome)}</b></p>
+            </>
+          )}
         </section>
 
         <p className="text-[12px] text-muted text-center pb-6">Formula: Winner = ₹2,50,000 − discount · Dividend = (discount − ₹1,100 bonus) ÷ 25 · Payable = ₹10,000 − dividend, rounded up to ₹100 (extra to promoter) · No foreman commission · Month {PROMOTER_MONTH}: promoter month, everyone pays full ₹10,000</p>
