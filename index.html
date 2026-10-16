@@ -9,7 +9,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B7A41'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E0%A5%90%3C/text%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230B7A41'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='white' font-family='sans-serif'%3E%E0%A5%90%3C/text%3E%3C/svg%3E">
 <style>*,*::before,*::after{box-sizing:border-box}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>Om Kitty</title>
+<title>Kitty Manager · Om Kitty</title>
+<meta name="description" content="Free, open-source discount (boli) kitty manager. Create your own kitty with your own name, members and installment.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Mukta:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -67,23 +68,55 @@ tailwind.config={theme:{extend:{colors:{
 
 </head>
 <body>
-<div id="root"><div style="padding:40px 16px;text-align:center;color:var(--muted)">Loading Om Kitty…</div></div>
+<div id="root"><div style="padding:40px 16px;text-align:center;color:var(--muted)">Loading Kitty…</div></div>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
 
-/* ---------- Kitty config ---------- */
-const CFG = { title: "Om Kitty - 2.5 Lakh", members: 25, pot: 250000, inst: 10000 };
-const PROMOTER_MONTH = 3;      // promoter takes the full pot this month, every member pays full ₹10,000
-const PROMOTER_ID = "12";      // "Owner"
-const BONUS = [{ rank: "2nd", label: "2nd Caller", amt: 500 }, { rank: "3rd", label: "3rd Caller", amt: 400 }, { rank: "4th", label: "4th Caller", amt: 200 }];
-const BONUS_TOTAL = BONUS.reduce((s, b) => s + b.amt, 0); // 1,100
-const ROUND_TO = 100;          // payable rounded up to this; the extra goes to the promoter
-const STORE_KEY = "omKitty.v1";
+/* ---------- Kitty config ----------
+   Every kitty follows the same rules (discount/boli kitty, no foreman commission,
+   3 caller bonuses, payable rounded up to the nearest ROUND_TO, optional promoter month).
+   Only the name, members, installment, bonus amounts and promoter month change per kitty.
+   These values are swapped in by applyKitty() before the App for a kitty renders. */
+let CFG = { title: "Om Kitty - 2.5 Lakh", members: 25, pot: 250000, inst: 10000 };
+let PROMOTER_MONTH = 3;      // promoter takes the full pot this month, every member pays the full installment (0 = none)
+let PROMOTER_ID = "12";      // Sr. no. of the promoter
+let BONUS = [{ rank: "2nd", label: "2nd Caller", amt: 500 }, { rank: "3rd", label: "3rd Caller", amt: 400 }, { rank: "4th", label: "4th Caller", amt: 200 }];
+let BONUS_TOTAL = BONUS.reduce((s, b) => s + b.amt, 0);
+const ROUND_TO = 100;        // payable rounded up to this; the extra goes to the promoter
+let STORE_KEY = "omKitty.v1";
+let KITTY = null;            // the active kitty definition
+
+const REGISTRY_KEY = "kittyManager.registry.v1";
+const DEFAULT_BONUS = [500, 400, 200];
+const OM_NAMES = ["Gagan Mishra","Babula","Munna","Gopal Shaw","Mohan","Murari Pandiji","Pintu Kushwaha","Rajan Shukla","Umesh Ram","Rohan","Rohan II","Owner","Murari","Mahesh","Chandan Jha","Chunno","Raj Thakur","Ashish","Balmukund","Chunnu Bhaijee","Kallu","Masterji","Sachin Jha (Chunnu Bh.)","Satyam","Prahlad Jha"];
+const OM_KITTY = { id: "om", title: "Om Kitty - 2.5 Lakh", members: 25, inst: 10000, bonus: DEFAULT_BONUS, promoterMonth: 3, promoterId: "12", names: OM_NAMES, storeKey: "omKitty.v1", sample: true };
+
+function applyKitty(k) {
+  KITTY = k;
+  CFG = { title: k.title, members: Number(k.members), inst: Number(k.inst), pot: Number(k.members) * Number(k.inst) };
+  PROMOTER_MONTH = Number(k.promoterMonth) || 0;
+  PROMOTER_ID = String(k.promoterId || "");
+  const b = (k.bonus && k.bonus.length === 3 ? k.bonus : DEFAULT_BONUS).map((x) => Number(x) || 0);
+  BONUS = [{ rank: "2nd", label: "2nd Caller", amt: b[0] }, { rank: "3rd", label: "3rd Caller", amt: b[1] }, { rank: "4th", label: "4th Caller", amt: b[2] }];
+  BONUS_TOTAL = BONUS.reduce((s, x) => s + x.amt, 0);
+  STORE_KEY = k.storeKey || ("kitty." + k.id);
+}
+function loadRegistry() {
+  try {
+    const r = JSON.parse(localStorage.getItem(REGISTRY_KEY) || "null");
+    if (r && Array.isArray(r.kitties) && r.kitties.length) return r;
+  } catch (e) {}
+  // First run: start with Om Kitty (keeps any data already saved in this browser)
+  return { active: "om", kitties: [OM_KITTY] };
+}
+function saveRegistry(r) { try { localStorage.setItem(REGISTRY_KEY, JSON.stringify(r)); } catch (e) {} }
+const slug = (s) => (String(s || "kitty").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "kitty");
+const fileBase = () => slug(CFG.title.split(" - ")[0]);
 
 /* ---------- Core logic (no foreman commission) ---------- */
 function calc(discountRaw, monthNo) {
-  if (Number(monthNo) === PROMOTER_MONTH) {
+  if (PROMOTER_MONTH && Number(monthNo) === PROMOTER_MONTH) {
     return { promoter: true, D: 0, winnerPayout: CFG.pot, dividendPot: 0, netDividend: 0, perExact: 0, payableExact: CFG.inst, perMember: 0, payable: CFG.inst, roundExtra: 0, expected: CFG.pot };
   }
   const D = Number(discountRaw);
@@ -107,12 +140,14 @@ const rs = (n) => (n < 0 ? "-Rs. " : "Rs. ") + fmt(Math.abs(n), Number.isInteger
 const round2 = (n) => Math.round(n * 100) / 100;
 
 /* ---------- Data ---------- */
-const MEMBER_NAMES = ["Gagan Mishra","Babula","Munna","Gopal Shaw","Mohan","Murari Pandiji","Pintu Kushwaha","Rajan Shukla","Umesh Ram","Rohan","Rohan II","Owner","Murari","Mahesh","Chandan Jha","Chunno","Raj Thakur","Ashish","Balmukund","Chunnu Bhaijee","Kallu","Masterji","Sachin Jha (Chunnu Bh.)","Satyam","Prahlad Jha"];
+const _UNUSED_NAMES = ["Gagan Mishra","Babula","Munna","Gopal Shaw","Mohan","Murari Pandiji","Pintu Kushwaha","Rajan Shukla","Umesh Ram","Rohan","Rohan II","Owner","Murari","Mahesh","Chandan Jha","Chunno","Raj Thakur","Ashish","Balmukund","Chunnu Bhaijee","Kallu","Masterji","Sachin Jha (Chunnu Bh.)","Satyam","Prahlad Jha"];
 
 function blankMembers() {
-  return MEMBER_NAMES.map((name, i) => ({ id: i + 1, name, phone: "" }));
+  const names = (KITTY && KITTY.names) || [];
+  return Array.from({ length: CFG.members }, (_, i) => ({ id: i + 1, name: names[i] || ("Member " + (i + 1)), phone: "" }));
 }
 function sampleState() {
+  if (!KITTY || !KITTY.sample) return freshState();
   return {
     isSample: false, current: 1, members: blankMembers(),
     months: {
@@ -121,7 +156,10 @@ function sampleState() {
     },
   };
 }
-function freshState() { return { isSample: false, current: 1, members: blankMembers(), months: {} }; }
+function freshState() {
+  const months = PROMOTER_MONTH ? { [PROMOTER_MONTH]: { discount: "", winnerId: PROMOTER_ID, callers: ["", "", ""], payments: {} } } : {};
+  return { isSample: false, current: 1, members: blankMembers(), months };
+}
 function emptyMonth() { return { discount: "", winnerId: "", callers: ["", "", ""], payments: {} }; }
 
 function loadState() {
@@ -132,8 +170,8 @@ function loadState() {
       if (s && Array.isArray(s.members) && s.members.length === CFG.members && s.months) {
         const RENAME = { "Chunnu Baby": "Chunnu Bhaijee", "Chunnu Sala": "Sachin Jha (Chunnu Bh.)" };
         s.members = s.members.map((x) => (RENAME[x.name] ? { ...x, name: RENAME[x.name] } : x));
-        const pm = s.months[PROMOTER_MONTH] || { discount: "", winnerId: "", callers: ["", "", ""], payments: {} };
-        if (!pm.winnerId) s.months = { ...s.months, [PROMOTER_MONTH]: { ...pm, winnerId: PROMOTER_ID } };
+        const pm = (PROMOTER_MONTH && s.months[PROMOTER_MONTH]) || { discount: "", winnerId: "", callers: ["", "", ""], payments: {} };
+        if (PROMOTER_MONTH && !pm.winnerId) s.months = { ...s.months, [PROMOTER_MONTH]: { ...pm, winnerId: PROMOTER_ID } };
         return s;
       }
     }
@@ -196,7 +234,7 @@ function saveFile({ filename, data }) {
 }
 
 /* ---------- App ---------- */
-function App() {
+function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
   const [state, setState] = useState(loadState);
   const [query, setQuery] = useState("");
   const [editMembers, setEditMembers] = useState(false);
@@ -216,7 +254,7 @@ function App() {
   const m = state.current;
   const month = state.months[m] || emptyMonth();
   const c = calc(month.discount, m);
-  const isPromoter = m === PROMOTER_MONTH;
+  const isPromoter = !!PROMOTER_MONTH && m === PROMOTER_MONTH;
   const locked = !!month.locked;
   const [confirmLock, setConfirmLock] = useState(false);
   const [confirmUnlock, setConfirmUnlock] = useState(false);
@@ -378,7 +416,7 @@ function App() {
         footStyles: { fillColor: [226, 242, 232], textColor: [16, 36, 26] } });
       doc.setFontSize(8.5); doc.setTextColor(90, 105, 95);
       doc.text("(P) = Promoter month. Only submitted months are included. Generated " + new Date().toLocaleString("en-IN"), 36, doc.internal.pageSize.getHeight() - 20);
-      await saveFile({ filename: `${CFG.title.split(" - ")[0].replace(/\s+/g, "-")}-Report.pdf`, data: doc.output("blob") });
+      await saveFile({ filename: `${fileBase()}-Report.pdf`, data: doc.output("blob") });
       setToast("Report PDF saved");
     } catch (e) { setToast("Report PDF couldn't be created."); }
   };
@@ -413,7 +451,7 @@ function App() {
         ["Dividend pot (= discount)", rs(c.dividendPot)],
         ["Total bonus", rs(BONUS_TOTAL)],
         ["Net dividend (after bonus)", rs(c.netDividend)],
-        ["Exact payable (10,000 - net dividend / 25)", rs(round2(c.payableExact))],
+        [`Exact payable (${fmt(CFG.inst)} - net dividend / ${CFG.members})`, rs(round2(c.payableExact))],
         ["Payable by each member (rounded up to 100)", rs(c.payable)],
         ["Effective dividend per member", rs(c.perMember)],
         ["Rounding extra to promoter", rs(c.roundExtra)],
@@ -434,7 +472,7 @@ function App() {
       const H = doc.internal.pageSize.getHeight();
       doc.setFontSize(8.5); doc.setTextColor(90, 105, 95);
       doc.text(`Generated ${new Date().toLocaleString("en-IN")}`, 40, H - 24);
-      await saveFile({ filename: `Om-Kitty-Month-${m}.pdf`, data: doc.output("blob") });
+      await saveFile({ filename: `${fileBase()}-Month-${m}.pdf`, data: doc.output("blob") });
       setToast("PDF saved");
     } catch (e) {
       if (e && e.code === "declined") setToast("Download cancelled");
@@ -443,7 +481,7 @@ function App() {
   };
 
   const backup = async () => {
-    try { await saveFile({ filename: "om-kitty-backup.json", data: JSON.stringify(state, null, 2) }); setToast("Backup saved"); }
+    try { await saveFile({ filename: `${fileBase()}-backup.json`, data: JSON.stringify(state, null, 2) }); setToast("Backup saved"); }
     catch (e) { setToast(e?.code === "declined" ? "Backup cancelled" : "Backup failed"); }
   };
   const restore = (file) => {
@@ -453,7 +491,7 @@ function App() {
         const s = JSON.parse(r.result);
         if (!Array.isArray(s.members) || s.members.length !== CFG.members || !s.months) throw new Error();
         setState({ ...s, isSample: false }); setToast("Backup restored");
-      } catch (e) { setToast("This file isn't an Om Kitty backup."); }
+      } catch (e) { setToast(`This file isn't a backup of ${CFG.title} (${CFG.members} members).`); }
     };
     r.readAsText(file);
   };
@@ -467,14 +505,22 @@ function App() {
       {/* Header */}
       <header className="sticky z-20 bg-surface border-b border-line" style={{ top: "env(safe-area-inset-top, 0px)" }}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent text-onAccent grid place-items-center font-extrabold text-lg shrink-0" aria-hidden="true">ॐ</div>
+          <div className="w-10 h-10 rounded-xl bg-accent text-onAccent grid place-items-center font-extrabold text-lg shrink-0" aria-hidden="true">{kitty.id === "om" ? "ॐ" : (CFG.title.trim()[0] || "K").toUpperCase()}</div>
           <div className="min-w-0 flex-1">
             <h1 className="font-extrabold text-[17px] sm:text-xl leading-tight truncate">{CFG.title}</h1>
-            <p className="text-[12.5px] text-muted leading-tight">25 members · ₹10,000 kisht · Discount (boli) kitty</p>
+            <p className="text-[12.5px] text-muted leading-tight">{CFG.members} members · {inr(CFG.inst)} kisht · Discount (boli) kitty</p>
           </div>
           <a href={waHref} target="_blank" rel="noopener noreferrer" className="hidden sm:inline-flex items-center gap-2 bg-accent text-onAccent px-3.5 py-2 rounded-xl font-semibold hover:opacity-90">
             <Icon name="wa" className="w-4 h-4" /> Share
           </a>
+        </div>
+        <div className="max-w-6xl mx-auto px-4 pb-3 flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="kitty-switch">Choose kitty</label>
+          <select id="kitty-switch" className="field !w-auto !py-1.5 text-sm max-w-[60vw]" value={kitty.id} onChange={(e) => onSwitch(e.target.value)}>
+            {kitties.map((k) => <option key={k.id} value={k.id}>{k.title}</option>)}
+          </select>
+          <button onClick={onNew} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-[14px] bg-accentSoft text-accent">+ New kitty</button>
+          <button onClick={onEdit} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-[14px] bg-surface2 border border-line"><Icon name="edit" className="w-4 h-4" /> Kitty settings</button>
         </div>
       </header>
 
@@ -495,7 +541,7 @@ function App() {
 
         {/* Summary cards */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Summary">
-          <SummaryCard icon="pot" label="Total Pot" hi="कुल पॉट" value={inr(CFG.pot)} sub={`25 × ${inr(CFG.inst)} every month`} />
+          <SummaryCard icon="pot" label="Total Pot" hi="कुल पॉट" value={inr(CFG.pot)} sub={`${CFG.members} × ${inr(CFG.inst)} every month`} />
           <SummaryCard icon="fee" label="Dividend Given" hi="लाभांश (अब तक)" value={inr(round2(totals.dividend))} sub={`Across ${totals.auctions} boli · rounding ${inr(totals.extra)} to promoter`} />
           <SummaryCard icon="gift" label="Bonus Given" hi="बोनस (अब तक)" value={inr(totals.bonus)} sub={`${totals.auctions} months × ${inr(BONUS_TOTAL)}`} />
           <SummaryCard icon="wallet" label="Collected Till Date" hi="कुल जमा" value={inr(totals.collected)} sub={`${totals.auctions} of ${CFG.members} months auctioned`} />
@@ -678,7 +724,7 @@ function App() {
                 <h2 className="font-bold">Hisaab <span className="text-muted font-medium text-sm">· How it's calculated</span></h2>
                 {c && c.promoter ? (
                   <div className="mt-2 text-[14.5px]">
-                    <LedgerRow op="" label="25 members × full installment" hi="" value={`25 × ${inr(CFG.inst)}`} />
+                    <LedgerRow op="" label={`${CFG.members} members × full installment`} hi="" value={`${CFG.members} × ${inr(CFG.inst)}`} />
                     <LedgerRow op="=" label="Full pot to promoter" hi="प्रमोटर" value={inr(CFG.pot)} strong />
                     <LedgerRow op="" label="Dividend / bonus" hi="" value="None" />
                     <LedgerRow op="=" label="Payable" hi="full" value={inr(CFG.inst)} strong />
@@ -692,10 +738,10 @@ function App() {
                     <LedgerRow op="" label="Discount" hi="डिविडेंड पॉट" value={inr(c.dividendPot)} />
                     <LedgerRow op="−" label="Total bonus" hi="" value={inr(BONUS_TOTAL)} tone="gold" />
                     <LedgerRow op="=" label="Net dividend" hi="" value={inr(c.netDividend)} strong tone={c.netDividend < 0 ? "warn" : ""} />
-                    <LedgerRow op="÷" label="25 members" hi="" value={inr(round2(c.perExact)) + " each"} />
-                    <LedgerRow op="" label="Exact payable" hi="₹10,000 − dividend" value={inr(round2(c.payableExact))} />
-                    <LedgerRow op="=" label="Payable" hi="rounded up to ₹100" value={inr(c.payable)} strong />
-                    <LedgerRow op="+" label="Rounding extra to promoter" hi={`25 × ${inr(round2(c.payable - c.payableExact))}`} value={inr(c.roundExtra)} tone="gold" />
+                    <LedgerRow op="÷" label={`${CFG.members} members`} hi="" value={inr(round2(c.perExact)) + " each"} />
+                    <LedgerRow op="" label="Exact payable" hi={`${inr(CFG.inst)} − dividend`} value={inr(round2(c.payableExact))} />
+                    <LedgerRow op="=" label="Payable" hi={`rounded up to ${inr(ROUND_TO)}`} value={inr(c.payable)} strong />
+                    <LedgerRow op="+" label="Rounding extra to promoter" hi={`${CFG.members} × ${inr(round2(c.payable - c.payableExact))}`} value={inr(c.roundExtra)} tone="gold" />
                   </div>
                 ) : (
                   <p className="mt-3 text-muted text-[14px]">Winning discount daalte hi poora hisaab yahan dikhega. Enter the winning discount to see the breakdown.</p>
@@ -905,12 +951,13 @@ function App() {
                   </tfoot>
                 </table>
               </div>
-              <p className="px-4 sm:px-5 py-3 text-[12px] text-muted border-t border-line">Boli % = boli ÷ pot · Dividend % = dividend ÷ ₹10,000 kisht · Member margin = (kul kisht − asal diya) ÷ kul kisht · Promoter income ab tak: <b className="num">{inr(report.promoterIncome)}</b></p>
+              <p className="px-4 sm:px-5 py-3 text-[12px] text-muted border-t border-line">Boli % = boli ÷ pot · Dividend % = dividend ÷ {inr(CFG.inst)} kisht · Member margin = (kul kisht − asal diya) ÷ kul kisht · Promoter income ab tak: <b className="num">{inr(report.promoterIncome)}</b></p>
             </>
           )}
         </section>
 
-        <p className="text-[12px] text-muted text-center pb-6">Formula: Winner = ₹2,50,000 − discount · Dividend = (discount − ₹1,100 bonus) ÷ 25 · Payable = ₹10,000 − dividend, rounded up to ₹100 (extra to promoter) · No foreman commission · Month {PROMOTER_MONTH}: promoter month, everyone pays full ₹10,000</p>
+        <p className="text-[12px] text-muted text-center pb-6">Formula: Winner = {inr(CFG.pot)} − discount · Dividend = (discount − {inr(BONUS_TOTAL)} bonus) ÷ {CFG.members} · Payable = {inr(CFG.inst)} − dividend, rounded up to {inr(ROUND_TO)} (extra to promoter) · No foreman commission{PROMOTER_MONTH ? ` · Month ${PROMOTER_MONTH}: promoter month, everyone pays full ${inr(CFG.inst)}` : ""}</p>
+        <p className="text-[12px] text-muted text-center pb-6 -mt-4">Free &amp; open-source kitty manager · <a className="text-accent font-semibold" href="https://github.com/Kumar3216549/om-kitty" target="_blank" rel="noopener noreferrer">Get the code on GitHub</a></p>
       </main>
 
       {/* Mobile sticky share */}
@@ -928,7 +975,156 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+/* ---------- Kitty setup (create / edit) ---------- */
+function Field({ id, label, hi, children }) {
+  return <label className="flex flex-col gap-1.5" htmlFor={id}><span className="label">{label}{hi ? " · " + hi : ""}</span>{children}</label>;
+}
+function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete }) {
+  const [f, setF] = useState(() => ({
+    title: initial.title || "", members: String(initial.members || 20), inst: String(initial.inst || 5000),
+    b2: String((initial.bonus || DEFAULT_BONUS)[0]), b3: String((initial.bonus || DEFAULT_BONUS)[1]), b4: String((initial.bonus || DEFAULT_BONUS)[2]),
+    promoterMonth: String(initial.promoterMonth ?? 3), promoterId: String(initial.promoterId || "1"),
+    names: (initial.names || []).join("\n"),
+  }));
+  const [err, setErr] = useState("");
+  const [confirmDel, setConfirmDel] = useState(false);
+  const set = (k) => (e) => setF((s) => ({ ...s, [k]: e.target.value }));
+  const n = Math.max(0, Math.floor(Number(f.members) || 0));
+  const inst = Number(f.inst) || 0;
+  const nameList = f.names.split("\n").map((x) => x.trim());
+  const names = Array.from({ length: n }, (_, i) => nameList[i] || ("Member " + (i + 1)));
+  const extraNames = nameList.filter(Boolean).length - n;
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!f.title.trim()) return setErr("Kitty ka naam daalein · Please enter a kitty name.");
+    if (n < 2 || n > 100) return setErr("Members 2 se 100 ke beech hone chahiye.");
+    if (inst <= 0) return setErr("Monthly installment (kisht) daalein.");
+    const pm = Number(f.promoterMonth) || 0;
+    if (pm < 0 || pm > n) return setErr(`Promoter month 0 se ${n} ke beech ho.`);
+    onSave({
+      title: f.title.trim(), members: n, inst, bonus: [Number(f.b2) || 0, Number(f.b3) || 0, Number(f.b4) || 0],
+      promoterMonth: pm, promoterId: pm ? String(Math.min(n, Math.max(1, Number(f.promoterId) || 1))) : "", names,
+    });
+  };
+
+  return (
+    <div className="min-h-full">
+      <header className="bg-surface border-b border-line">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-accent text-onAccent grid place-items-center font-extrabold text-lg shrink-0" aria-hidden="true">+</div>
+          <div className="min-w-0 flex-1">
+            <h1 className="font-extrabold text-[17px] sm:text-xl leading-tight">{isNew ? "Nayi kitty banayein · New kitty" : "Kitty settings"}</h1>
+            <p className="text-[12.5px] text-muted leading-tight">Same rules for every kitty · boli (discount) kitty, caller bonus, ₹100 rounding</p>
+          </div>
+        </div>
+      </header>
+      <form onSubmit={submit} className="max-w-3xl mx-auto px-4 py-5 flex flex-col gap-5">
+        <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 grid sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <Field id="k-title" label="Kitty name" hi="किटी का नाम">
+              <input id="k-title" className="field" placeholder="e.g. Shiv Kitty - 1 Lakh" value={f.title} onChange={set("title")} />
+            </Field>
+          </div>
+          <Field id="k-members" label="Members (= months)" hi="सदस्य">
+            <input id="k-members" className="field num" type="number" inputMode="numeric" min="2" max="100" disabled={!isNew} value={f.members} onChange={set("members")} />
+          </Field>
+          <Field id="k-inst" label="Monthly installment (₹)" hi="किश्त">
+            <input id="k-inst" className="field num" type="number" inputMode="numeric" min="1" step="any" value={f.inst} onChange={set("inst")} />
+          </Field>
+          <div className="sm:col-span-2 bg-accentSoft rounded-xl p-3 text-[14px]">
+            Total pot · कुल पॉट: <b className="num">{inr(n * inst)}</b> <span className="text-muted">({n} × {inr(inst)} every month, {n} months)</span>
+            {!isNew && <span className="block text-[12.5px] text-muted mt-1">Members count can't change after a kitty starts. Names and phones are edited from the Members list.</span>}
+          </div>
+        </section>
+
+        {isNew && (
+          <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
+            <Field id="k-names" label="Member names, one per line" hi="सदस्यों के नाम">
+              <textarea id="k-names" className="field min-h-[180px]" placeholder={"Ramesh\nSuresh\nMahesh\n…"} value={f.names} onChange={set("names")} />
+            </Field>
+            <p className="text-[12.5px] text-muted">{nameList.filter(Boolean).length} of {n} names entered. Empty ones become "Member 1, Member 2…" and you can rename them later.{extraNames > 0 ? ` ${extraNames} extra name(s) will be ignored.` : ""}</p>
+          </section>
+        )}
+
+        <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 grid sm:grid-cols-3 gap-4">
+          <p className="sm:col-span-3 font-bold">Caller bonus · बोनस <span className="text-muted font-medium text-sm">(paid from the boli before dividend)</span></p>
+          <Field id="k-b2" label="2nd caller ₹"><input id="k-b2" className="field num" type="number" min="0" value={f.b2} onChange={set("b2")} /></Field>
+          <Field id="k-b3" label="3rd caller ₹"><input id="k-b3" className="field num" type="number" min="0" value={f.b3} onChange={set("b3")} /></Field>
+          <Field id="k-b4" label="4th caller ₹"><input id="k-b4" className="field num" type="number" min="0" value={f.b4} onChange={set("b4")} /></Field>
+        </section>
+
+        <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 grid sm:grid-cols-2 gap-4">
+          <p className="sm:col-span-2 font-bold">Promoter month · प्रमोटर <span className="text-muted font-medium text-sm">(no boli; promoter takes the full pot, everyone pays the full kisht)</span></p>
+          <Field id="k-pm" label="Promoter month">
+            <select id="k-pm" className="field" value={f.promoterMonth} onChange={set("promoterMonth")}>
+              <option value="0">No promoter month</option>
+              {Array.from({ length: n }, (_, i) => <option key={i} value={i + 1}>Month {i + 1}</option>)}
+            </select>
+          </Field>
+          <Field id="k-pid" label="Promoter (member)">
+            <select id="k-pid" className="field" disabled={f.promoterMonth === "0"} value={f.promoterId} onChange={set("promoterId")}>
+              {(isNew ? names : (initial.memberList || names)).map((nm, i) => <option key={i} value={i + 1}>{i + 1}. {nm}</option>)}
+            </select>
+          </Field>
+        </section>
+
+        {err && <p className="text-[14px] bg-warnSoft text-warn rounded-xl p-3">{err}</p>}
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className="px-5 py-2.5 rounded-xl font-semibold bg-accent text-onAccent">{isNew ? "Kitty banayein · Create kitty" : "Save settings"}</button>
+          {onCancel && <button type="button" onClick={onCancel} className="px-5 py-2.5 rounded-xl font-semibold bg-surface border border-line">Cancel</button>}
+          {!isNew && canDelete && (confirmDel ? (
+            <>
+              <button type="button" onClick={onDelete} className="ml-auto px-4 py-2.5 rounded-xl font-semibold bg-warn" style={{ color: "var(--surface)" }}>Haan, delete karo</button>
+              <button type="button" onClick={() => setConfirmDel(false)} className="px-4 py-2.5 rounded-xl font-semibold bg-surface border border-line">No</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => setConfirmDel(true)} className="ml-auto px-4 py-2.5 rounded-xl font-semibold text-warn bg-surface border border-line">Delete this kitty</button>
+          ))}
+        </div>
+        <p className="text-[12.5px] text-muted">Tip: take a backup from inside the kitty before deleting. Every kitty's data stays only in this browser.</p>
+      </form>
+    </div>
+  );
+}
+
+/* ---------- Root: many kitties, one app ---------- */
+function Root() {
+  const [reg, setReg] = useState(loadRegistry);
+  const [mode, setMode] = useState(null); // null | "new" | "edit"
+  useEffect(() => { saveRegistry(reg); }, [reg]);
+  const active = reg.kitties.find((k) => k.id === reg.active) || reg.kitties[0];
+  applyKitty(active);
+
+  const create = (cfg) => {
+    const id = slug(cfg.title) + "-" + Date.now().toString(36);
+    const k = { ...cfg, id, storeKey: "kitty." + id };
+    setReg((r) => ({ active: id, kitties: [...r.kitties, k] }));
+    setMode(null);
+  };
+  const saveEdit = (cfg) => {
+    setReg((r) => ({ ...r, kitties: r.kitties.map((k) => (k.id === active.id ? { ...k, ...cfg, members: k.members, names: k.names } : k)) }));
+    setMode(null);
+  };
+  const remove = () => {
+    try { localStorage.removeItem(active.storeKey || ("kitty." + active.id)); } catch (e) {}
+    setReg((r) => { const left = r.kitties.filter((k) => k.id !== active.id); return { active: left[0].id, kitties: left }; });
+    setMode(null);
+  };
+
+  if (mode === "new") return <KittySetup isNew initial={{}} onSave={create} onCancel={() => setMode(null)} />;
+  if (mode === "edit") {
+    let memberList = null;
+    try { const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); if (s && Array.isArray(s.members)) memberList = s.members.map((x) => x.name); } catch (e) {}
+    return <KittySetup initial={{ ...active, memberList }} canDelete={reg.kitties.length > 1} onSave={saveEdit} onCancel={() => setMode(null)} onDelete={remove} />;
+  }
+  return <App key={active.id + ":" + JSON.stringify([active.inst, active.bonus, active.promoterMonth, active.promoterId, active.title])}
+    kitty={active} kitties={reg.kitties}
+    onSwitch={(id) => setReg((r) => ({ ...r, active: id }))} onNew={() => setMode("new")} onEdit={() => setMode("edit")} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Root />);
+
 </script>
 
 </body>
