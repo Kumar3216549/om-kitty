@@ -65,6 +65,10 @@ tailwind.config={theme:{extend:{colors:{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- Firebase (login + online records). Paste your project's config in FIREBASE_CONFIG below. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 
 </head>
 <body>
@@ -125,6 +129,179 @@ function loadRegistry() {
   return { active: "om", kitties: [OM_KITTY] };
 }
 function saveRegistry(r) { try { localStorage.setItem(REGISTRY_KEY, JSON.stringify(r)); } catch (e) {} }
+/* ---------- Accounts & online records (Firebase) ----------
+   Sign in with Google · only @gmail.com accounts · each user sees only their own kitties.
+   ADMIN_EMAIL can open every member's kitties and view or edit them.
+   Leave FIREBASE_CONFIG.apiKey empty to run in the old "this browser only" mode. */
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+};
+const ADMIN_EMAIL = "sachin608@gmail.com";
+const GMAIL_RE = /^[a-z0-9](?:[a-z0-9.+_-]*[a-z0-9])?@gmail\.com$/;
+const CLOUD = { on: false, auth: null, db: null, user: null, ownerUid: null, ownerEmail: "", cache: {}, timers: {} };
+try {
+  if (FIREBASE_CONFIG.apiKey && window.firebase) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    CLOUD.auth = firebase.auth();
+    CLOUD.db = firebase.firestore();
+    CLOUD.on = true;
+  }
+} catch (e) { console.error("Firebase init failed", e); }
+const isAdmin = () => !!(CLOUD.user && CLOUD.user.email === ADMIN_EMAIL);
+const kittyCol = (uid) => CLOUD.db.collection("users").doc(uid).collection("kitties");
+const KITTY_FIELDS = ["id", "title", "members", "inst", "bonus", "promoterMonth", "promoterId", "names", "sample"];
+const pickCfg = (k) => { const o = {}; KITTY_FIELDS.forEach((f) => { if (k[f] !== undefined) o[f] = k[f]; }); return o; };
+function cloudSaveState(kittyId, state) {
+  if (!CLOUD.on || !CLOUD.ownerUid) return;
+  const json = JSON.stringify(state);
+  if (CLOUD.cache[kittyId] === json) return;
+  CLOUD.cache[kittyId] = json;
+  const owner = CLOUD.ownerUid, by = CLOUD.user ? CLOUD.user.email : "";
+  clearTimeout(CLOUD.timers[kittyId]);
+  CLOUD.timers[kittyId] = setTimeout(() => {
+    kittyCol(owner).doc(kittyId).set({ state: json, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: by }, { merge: true })
+      .catch((e) => { console.error(e); window.dispatchEvent(new CustomEvent("kitty-save-error")); });
+  }, 700);
+}
+async function cloudLoadKitties(uid) {
+  const snap = await kittyCol(uid).get();
+  const list = [];
+  snap.forEach((d) => {
+    const v = d.data();
+    const k = { ...pickCfg(v), id: d.id, storeKey: "cloud." + uid + "." + d.id };
+    if (v.state) CLOUD.cache[d.id] = v.state;
+    list.push({ k, order: v.createdAt ? v.createdAt.toMillis() : 0 });
+  });
+  return list.sort((a, b) => a.order - b.order).map((x) => x.k);
+}
+async function cloudWriteKitty(uid, k, stateJson) {
+  const data = { ...pickCfg(k), updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+  if (stateJson) data.state = stateJson;
+  const ref = kittyCol(uid).doc(k.id);
+  const ex = await ref.get();
+  if (!ex.exists) data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+  await ref.set(data, { merge: true });
+}
+/* First sign-in on a phone that already has kitties saved locally: copy them to the account. */
+async function migrateLocalKitties(uid) {
+  let reg = null;
+  try { reg = JSON.parse(localStorage.getItem(REGISTRY_KEY) || "null"); } catch (e) {}
+  const kitties = reg && Array.isArray(reg.kitties) ? reg.kitties : [OM_KITTY];
+  const moved = [];
+  for (const k of kitties) {
+    let raw = null;
+    try { raw = localStorage.getItem(k.storeKey || ("kitty." + k.id)); } catch (e) {}
+    if (!raw) continue;
+    await cloudWriteKitty(uid, k, raw);
+    moved.push(k.id);
+  }
+  return moved;
+}
+
+function LoginScreen({ error, busy, onGoogle, onLang }) {
+  return (
+    <div className="min-h-full grid place-items-center px-4 py-10">
+      <div className="w-full max-w-md bg-surface border border-line rounded-3xl p-6 sm:p-8 flex flex-col gap-5">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-accent text-onAccent grid place-items-center font-extrabold text-2xl" aria-hidden="true">ॐ</div>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-extrabold text-xl leading-tight">{tr("Kitty Manager", "किटी मैनेजर")}</h1>
+            <p className="text-[13px] text-muted">{tr("Your kitties, saved safely in your account", "आपकी किटी, आपके अकाउंट में सुरक्षित")}</p>
+          </div>
+          <LangToggle onToggle={onLang} />
+        </div>
+        <button type="button" onClick={onGoogle} disabled={busy}
+          className="inline-flex items-center justify-center gap-3 rounded-xl py-3 font-semibold border border-line bg-surface2 hover:border-accent disabled:opacity-60">
+          <svg viewBox="0 0 48 48" className="w-5 h-5" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>
+          {busy ? tr("Signing in…", "साइन इन हो रहा है…") : tr("Sign in with Google", "Google से साइन इन करें")}
+        </button>
+        <p className="text-[13px] text-muted">{tr("Only Gmail accounts (name@gmail.com) can sign in. No password to remember — Google confirms it's you.", "सिर्फ़ Gmail अकाउंट (name@gmail.com) से साइन इन होगा। कोई पासवर्ड याद नहीं रखना — Google पुष्टि करता है कि यह आप हैं।")}</p>
+        {error && <p className="text-[14px] bg-warnSoft text-warn rounded-xl p-3">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+function AccountBar({ onLogout, onAdmin, viewing, onBackToMine }) {
+  const me = CLOUD.user;
+  return (
+    <div className="bg-surface2 border-b border-line">
+      <div className="max-w-6xl mx-auto px-4 py-1.5 flex flex-wrap items-center gap-2 text-[13px]">
+        {me.photoURL && <img src={me.photoURL} alt="" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />}
+        <span className="font-semibold truncate max-w-[50vw]">{me.email}</span>
+        {isAdmin() && <span className="px-2 py-0.5 rounded-full bg-goldSoft text-gold font-semibold">{tr("Admin", "एडमिन")}</span>}
+        <span className="flex-1" />
+        {isAdmin() && <button onClick={onAdmin} className="px-2.5 py-1 rounded-lg font-semibold bg-accentSoft text-accent">{tr("All members", "सभी सदस्य")}</button>}
+        <button onClick={onLogout} className="px-2.5 py-1 rounded-lg font-semibold border border-line bg-surface">{tr("Sign out", "साइन आउट")}</button>
+      </div>
+      {viewing && (
+        <div className="bg-goldSoft">
+          <div className="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-2 text-[13.5px]">
+            <span className="flex-1 min-w-0">{tr("Admin view: you are viewing and can edit the records of ", "एडमिन व्यू: आप इनके रिकॉर्ड देख और बदल रहे हैं: ")}<b>{viewing}</b></span>
+            <button onClick={onBackToMine} className="px-3 py-1 rounded-lg font-semibold bg-surface border border-line">{tr("Back to my kitties", "मेरी किटी पर वापस")}</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminPanel({ onOpen, onClose, onLang }) {
+  const [rows, setRows] = useState(null);
+  const [err, setErr] = useState("");
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    (async () => {
+      try {
+        const us = await CLOUD.db.collection("users").get();
+        const list = [];
+        for (const d of us.docs) {
+          const v = d.data();
+          const ks = await kittyCol(d.id).get();
+          list.push({ uid: d.id, email: v.email || "", name: v.name || "", last: v.lastLogin ? v.lastLogin.toDate() : null, kitties: ks.docs.map((x) => x.data().title || x.id) });
+        }
+        list.sort((a, b) => (a.email === ADMIN_EMAIL ? -1 : b.email === ADMIN_EMAIL ? 1 : a.email.localeCompare(b.email)));
+        setRows(list);
+      } catch (e) { console.error(e); setErr(tr("Couldn't load members. Check the Firestore rules.", "सदस्य लोड नहीं हुए। Firestore नियम जाँचें।")); }
+    })();
+  }, []);
+  const shown = (rows || []).filter((r) => !q || (r.email + " " + r.name).toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="min-h-full">
+      <header className="bg-surface border-b border-line">
+        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-extrabold text-[17px] sm:text-xl leading-tight">{tr("All members", "सभी सदस्य")}</h1>
+            <p className="text-[12.5px] text-muted leading-tight">{tr("Everyone who has signed in. Open anyone's kitties to view or edit them.", "जिन्होंने भी साइन इन किया है। किसी की भी किटी खोलकर देखें या बदलें।")}</p>
+          </div>
+          <LangToggle onToggle={onLang} />
+          <button onClick={onClose} className="px-3 py-1.5 rounded-xl font-semibold border border-line bg-surface2">{tr("Close", "बंद करें")}</button>
+        </div>
+      </header>
+      <main className="max-w-4xl mx-auto px-4 py-5 flex flex-col gap-3">
+        <input className="field" placeholder={tr("Search email or name", "ईमेल या नाम खोजें")} value={q} onChange={(e) => setQ(e.target.value)} />
+        {err && <p className="text-[14px] bg-warnSoft text-warn rounded-xl p-3">{err}</p>}
+        {!rows && !err && <p className="text-muted p-4">{tr("Loading…", "लोड हो रहा है…")}</p>}
+        {shown.map((r) => (
+          <div key={r.uid} className="bg-surface border border-line rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-bold truncate">{r.name || r.email}{r.email === ADMIN_EMAIL && <span className="ml-2 text-[12px] px-2 py-0.5 rounded-full bg-goldSoft text-gold">{tr("Admin", "एडमिन")}</span>}</p>
+              <p className="text-[13px] text-muted truncate">{r.email}{r.last ? " · " + tr("last seen ", "आख़िरी बार ") + r.last.toLocaleDateString(tr("en-IN", "hi-IN")) : ""}</p>
+              <p className="text-[13px] mt-1">{r.kitties.length ? r.kitties.join(" · ") : <span className="text-muted">{tr("No kitties yet", "अभी कोई किटी नहीं")}</span>}</p>
+            </div>
+            <button onClick={() => onOpen(r)} className="px-4 py-2 rounded-xl font-semibold bg-accent text-onAccent shrink-0">{tr("Open", "खोलें")}</button>
+          </div>
+        ))}
+      </main>
+    </div>
+  );
+}
+
 const slug = (s) => (String(s || "kitty").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "kitty");
 const fileBase = () => slug(CFG.title.split(" - ")[0]);
 
@@ -178,7 +355,7 @@ function emptyMonth() { return { discount: "", winnerId: "", callers: ["", "", "
 
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORE_KEY);
+    const raw = (CLOUD.on && KITTY && CLOUD.cache[KITTY.id]) || localStorage.getItem(STORE_KEY);
     if (raw) {
       const s = JSON.parse(raw);
       if (s && Array.isArray(s.members) && s.members.length === CFG.members && s.months) {
@@ -257,7 +434,12 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit, onLang }) {
   const [dl, setDl] = useState(null);
   const fileRef = useRef(null);
 
-  useEffect(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }, [state]);
+  useEffect(() => { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} cloudSaveState(kitty.id, state); }, [state]);
+  useEffect(() => {
+    const onErr = () => setToast(tr("Couldn't save online. Check your internet.", "ऑनलाइन सेव नहीं हुआ। इंटरनेट जाँचें।"));
+    window.addEventListener("kitty-save-error", onErr);
+    return () => window.removeEventListener("kitty-save-error", onErr);
+  }, []);
   useEffect(() => {
     let alive = true;
     try { window.claude?.use?.("downloads")?.then((d) => alive && setDl(d)).catch(() => {}); } catch (e) {}
@@ -499,6 +681,7 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit, onLang }) {
     catch (e) { setToast(e?.code === "declined" ? tr("Backup cancelled", "बैकअप रद्द") : tr("Backup failed", "बैकअप नहीं हो पाया")); }
   };
   const restore = (file) => {
+    if (CLOUD.on) delete CLOUD.cache[kitty.id];
     const r = new FileReader();
     r.onload = () => {
       try {
@@ -681,7 +864,7 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit, onLang }) {
               </div>
               <button onClick={() => fileRef.current?.click()} className="text-[13px] text-accent font-semibold self-start inline-flex items-center gap-1.5"><Icon name="upload" className="w-4 h-4" /> {tr("Restore from backup file", "बैकअप फ़ाइल से वापस लाएँ")}</button>
               <input ref={fileRef} id="restore-file" type="file" accept=".json,application/json" hidden onChange={(e) => { if (e.target.files[0]) restore(e.target.files[0]); e.target.value = ""; }} />
-              <p className="text-[12px] text-muted leading-snug">{tr("Data is saved in this browser only. Take a backup and restore it on another phone if needed.", "डेटा सिर्फ़ इसी ब्राउज़र में सेव होता है। ज़रूरत हो तो बैकअप लेकर दूसरे फ़ोन में वापस लाएँ।")}</p>
+              <p className="text-[12px] text-muted leading-snug">{CLOUD.on ? tr("Saved online in your account — open it on any phone by signing in.", "आपके अकाउंट में ऑनलाइन सेव है — किसी भी फ़ोन पर साइन इन करके खोलें।") : tr("Data is saved in this browser only. Take a backup and restore it on another phone if needed.", "डेटा सिर्फ़ इसी ब्राउज़र में सेव होता है। ज़रूरत हो तो बैकअप लेकर दूसरे फ़ोन में वापस लाएँ।")}</p>
               {LANG === "hi" && <p className="text-[12px] text-muted leading-snug">PDF फ़ाइलें अंग्रेज़ी में बनती हैं, ताकि हर फ़ोन पर सही दिखें।</p>}
             </div>
           </div>
@@ -1109,44 +1292,134 @@ function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete, onL
 
 /* ---------- Root: many kitties, one app ---------- */
 function Root() {
-  const [reg, setReg] = useState(loadRegistry);
-  const [mode, setMode] = useState(null); // null | "new" | "edit"
   const [lang, setLang] = useState(LANG);
   LANG = lang;
-  useEffect(() => { saveRegistry(reg); }, [reg]);
   useEffect(() => {
     try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
     document.documentElement.lang = lang;
   }, [lang]);
   const toggleLang = () => setLang((l) => (l === "hi" ? "en" : "hi"));
+  if (!CLOUD.on) return <KittyHome cloud={false} onLang={toggleLang} lang={lang} />;
+  return <CloudGate onLang={toggleLang} lang={lang} />;
+}
+
+function CloudGate({ onLang, lang }) {
+  const [phase, setPhase] = useState("loading"); // loading | out | in
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [owner, setOwner] = useState(null);       // { uid, email } whose kitties are shown
+  const [kitties, setKitties] = useState(null);
+  const [panel, setPanel] = useState(false);
+
+  useEffect(() => CLOUD.auth.onAuthStateChanged(async (u) => {
+    if (!u) { CLOUD.user = null; setPhase("out"); return; }
+    const email = (u.email || "").toLowerCase();
+    if (!GMAIL_RE.test(email) || !u.emailVerified) {
+      await CLOUD.auth.signOut();
+      setErr(tr("Only Gmail accounts (name@gmail.com) are allowed.", "सिर्फ़ Gmail अकाउंट (name@gmail.com) की अनुमति है।"));
+      setPhase("out"); return;
+    }
+    CLOUD.user = u;
+    try {
+      await CLOUD.db.collection("users").doc(u.uid).set({ email, name: u.displayName || "", photo: u.photoURL || "", lastLogin: firebase.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      await openOwner({ uid: u.uid, email }, true);
+      setPhase("in");
+    } catch (e) {
+      console.error(e);
+      setErr(tr("Signed in, but your records couldn't be loaded. Please try again.", "साइन इन हो गया, पर रिकॉर्ड लोड नहीं हुए। फिर से कोशिश करें।"));
+      setPhase("out");
+    }
+  }), []);
+
+  const openOwner = async (o, isSelf) => {
+    CLOUD.cache = {};
+    CLOUD.ownerUid = o.uid; CLOUD.ownerEmail = o.email;
+    let list = await cloudLoadKitties(o.uid);
+    if (isSelf && !list.length) {
+      const moved = await migrateLocalKitties(o.uid);
+      if (!moved.length && o.email === ADMIN_EMAIL) await cloudWriteKitty(o.uid, OM_KITTY, null);
+      list = await cloudLoadKitties(o.uid);
+    }
+    setOwner(o); setKitties(list); setPanel(false);
+  };
+
+  const google = async () => {
+    setErr(""); setBusy(true);
+    try {
+      const prov = new firebase.auth.GoogleAuthProvider();
+      prov.setCustomParameters({ prompt: "select_account" });
+      await CLOUD.auth.signInWithPopup(prov);
+    } catch (e) {
+      if (e && (e.code === "auth/popup-blocked" || e.code === "auth/operation-not-supported-in-this-environment")) {
+        try { await CLOUD.auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); } catch (e2) { setErr(String(e2.message || e2)); }
+      } else if (!(e && e.code === "auth/popup-closed-by-user")) {
+        setErr(e && e.code === "auth/unauthorized-domain"
+          ? tr("This website isn't allowed in Firebase yet. Add it under Authentication → Settings → Authorized domains.", "यह वेबसाइट अभी Firebase में अनुमति प्राप्त नहीं है। Authentication → Settings → Authorized domains में जोड़ें।")
+          : String((e && e.message) || e));
+      }
+    }
+    setBusy(false);
+  };
+  const logout = async () => { await CLOUD.auth.signOut(); CLOUD.cache = {}; setKitties(null); setOwner(null); };
+
+  if (phase === "loading") return <p className="p-10 text-center text-muted">{tr("Loading…", "लोड हो रहा है…")}</p>;
+  if (phase === "out" || !CLOUD.user) return <LoginScreen error={err} busy={busy} onGoogle={google} onLang={onLang} />;
+  if (panel && isAdmin()) return <AdminPanel onClose={() => setPanel(false)} onLang={onLang} onOpen={(r) => openOwner({ uid: r.uid, email: r.email }, r.uid === CLOUD.user.uid)} />;
+  if (!kitties) return <p className="p-10 text-center text-muted">{tr("Loading…", "लोड हो रहा है…")}</p>;
+  const viewing = owner && owner.uid !== CLOUD.user.uid ? owner.email : "";
+  return (
+    <>
+      <AccountBar onLogout={logout} onAdmin={() => setPanel(true)} viewing={viewing}
+        onBackToMine={() => openOwner({ uid: CLOUD.user.uid, email: CLOUD.user.email.toLowerCase() }, true)} />
+      <KittyHome key={owner.uid} cloud owner={owner} initialKitties={kitties} onLang={onLang} lang={lang} />
+    </>
+  );
+}
+
+function KittyHome({ cloud, owner, initialKitties, onLang, lang }) {
+  const ACTIVE_KEY = cloud ? "kittyManager.active." + owner.uid : null;
+  const [reg, setReg] = useState(() => {
+    if (!cloud) return loadRegistry();
+    let a = null; try { a = localStorage.getItem(ACTIVE_KEY); } catch (e) {}
+    return { active: a, kitties: initialKitties };
+  });
+  const [mode, setMode] = useState(cloud && !initialKitties.length ? "new" : null); // null | "new" | "edit"
+  useEffect(() => {
+    if (!cloud) saveRegistry(reg);
+    else { try { if (reg.active) localStorage.setItem(ACTIVE_KEY, reg.active); } catch (e) {} }
+  }, [reg]);
   const active = reg.kitties.find((k) => k.id === reg.active) || reg.kitties[0];
-  applyKitty(active);
+  if (active) applyKitty(active);
 
   const create = (cfg) => {
     const id = slug(cfg.title) + "-" + Date.now().toString(36);
-    const k = { ...cfg, id, storeKey: "kitty." + id };
+    const k = { ...cfg, id, storeKey: (cloud ? "cloud." + owner.uid + "." : "kitty.") + id };
+    if (cloud) cloudWriteKitty(owner.uid, k, null).catch((e) => console.error(e));
     setReg((r) => ({ active: id, kitties: [...r.kitties, k] }));
     setMode(null);
   };
   const saveEdit = (cfg) => {
-    setReg((r) => ({ ...r, kitties: r.kitties.map((k) => (k.id === active.id ? { ...k, ...cfg, members: k.members, names: k.names } : k)) }));
+    const k2 = { ...active, ...cfg, members: active.members, names: active.names };
+    if (cloud) cloudWriteKitty(owner.uid, k2, null).catch((e) => console.error(e));
+    setReg((r) => ({ ...r, kitties: r.kitties.map((k) => (k.id === active.id ? k2 : k)) }));
     setMode(null);
   };
   const remove = () => {
     try { localStorage.removeItem(active.storeKey || ("kitty." + active.id)); } catch (e) {}
-    setReg((r) => { const left = r.kitties.filter((k) => k.id !== active.id); return { active: left[0].id, kitties: left }; });
+    if (cloud) { kittyCol(owner.uid).doc(active.id).delete().catch((e) => console.error(e)); delete CLOUD.cache[active.id]; }
+    setReg((r) => { const left = r.kitties.filter((k) => k.id !== active.id); return { active: left[0] ? left[0].id : null, kitties: left }; });
     setMode(null);
   };
 
-  if (mode === "new") return <KittySetup isNew initial={{}} onSave={create} onCancel={() => setMode(null)} onLang={toggleLang} />;
+  if (mode === "new" || !active) return <KittySetup isNew initial={{}} onSave={create} onCancel={active ? () => setMode(null) : null} onLang={onLang} />;
   if (mode === "edit") {
     let memberList = null;
-    try { const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); if (s && Array.isArray(s.members)) memberList = s.members.map((x) => x.name); } catch (e) {}
-    return <KittySetup initial={{ ...active, memberList }} canDelete={reg.kitties.length > 1} onSave={saveEdit} onCancel={() => setMode(null)} onDelete={remove} onLang={toggleLang} />;
+    try { const s = JSON.parse((cloud && CLOUD.cache[active.id]) || localStorage.getItem(STORE_KEY) || "null"); if (s && Array.isArray(s.members)) memberList = s.members.map((x) => x.name); } catch (e) {}
+    return <KittySetup initial={{ ...active, memberList }} canDelete={reg.kitties.length > 1} onSave={saveEdit} onCancel={() => setMode(null)} onDelete={remove} onLang={onLang} />;
   }
   return <App key={active.id + ":" + lang + ":" + JSON.stringify([active.inst, active.bonus, active.promoterMonth, active.promoterId, active.title])}
     kitty={active} kitties={reg.kitties}
-    onSwitch={(id) => setReg((r) => ({ ...r, active: id }))} onNew={() => setMode("new")} onEdit={() => setMode("edit")} onLang={toggleLang} />;
+    onSwitch={(id) => setReg((r) => ({ ...r, active: id }))} onNew={() => setMode("new")} onEdit={() => setMode("edit")} onLang={onLang} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<Root />);
