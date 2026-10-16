@@ -1,0 +1,22 @@
+rules_version = '2';
+// Kitty Manager — who can read/write what.
+// Only signed-in, verified @gmail.com accounts. Each user owns users/{their uid}/...
+// The admin (sachin608@gmail.com) can read and edit everyone's records.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function gmail() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('^[a-z0-9.+_-]+@gmail[.]com$');
+    }
+    function admin() { return gmail() && request.auth.token.email == 'sachin608@gmail.com'; }
+    function owner(uid) { return gmail() && request.auth.uid == uid; }
+
+    match /users/{uid} {
+      allow read, write: if owner(uid) || admin();
+      match /kitties/{kittyId} {
+        allow read, write: if owner(uid) || admin();
+      }
+    }
+  }
+}
