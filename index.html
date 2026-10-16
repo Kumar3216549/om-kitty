@@ -68,7 +68,7 @@ tailwind.config={theme:{extend:{colors:{
 
 </head>
 <body>
-<div id="root"><div style="padding:40px 16px;text-align:center;color:var(--muted)">Loading Kitty…</div></div>
+<div id="root"><div style="padding:40px 16px;text-align:center;color:var(--muted)">Loading… · लोड हो रहा है…</div></div>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useMemo, useRef } = React;
@@ -88,6 +88,20 @@ let STORE_KEY = "omKitty.v1";
 let KITTY = null;            // the active kitty definition
 
 const REGISTRY_KEY = "kittyManager.registry.v1";
+/* ---------- Language: the whole app is either fully English or fully Hindi ---------- */
+const LANG_KEY = "kittyManager.lang";
+let LANG = (() => { try { return localStorage.getItem(LANG_KEY) === "hi" ? "hi" : "en"; } catch (e) { return "en"; } })();
+const tr = (en, hi) => (LANG === "hi" ? hi : en);
+const rankName = (i) => tr(["2nd", "3rd", "4th"][i], ["दूसरा", "तीसरा", "चौथा"][i]);
+const callerName = (i) => tr(["2nd Caller", "3rd Caller", "4th Caller"][i], ["दूसरा कॉलर", "तीसरा कॉलर", "चौथा कॉलर"][i]);
+function LangToggle({ onToggle }) {
+  return (
+    <button type="button" onClick={onToggle} aria-label={LANG === "hi" ? "Switch to English" : "हिंदी में बदलें"}
+      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-[14px] border border-line bg-surface2 hover:border-accent">
+      <span aria-hidden="true">🌐</span> {LANG === "hi" ? "English" : "हिंदी"}
+    </button>
+  );
+}
 const DEFAULT_BONUS = [500, 400, 200];
 const OM_NAMES = ["Gagan Mishra","Babula","Munna","Gopal Shaw","Mohan","Murari Pandiji","Pintu Kushwaha","Rajan Shukla","Umesh Ram","Rohan","Rohan II","Owner","Murari","Mahesh","Chandan Jha","Chunno","Raj Thakur","Ashish","Balmukund","Chunnu Bhaijee","Kallu","Masterji","Sachin Jha (Chunnu Bh.)","Satyam","Prahlad Jha"];
 const OM_KITTY = { id: "om", title: "Om Kitty - 2.5 Lakh", members: 25, inst: 10000, bonus: DEFAULT_BONUS, promoterMonth: 3, promoterId: "12", names: OM_NAMES, storeKey: "omKitty.v1", sample: true };
@@ -144,7 +158,7 @@ const _UNUSED_NAMES = ["Gagan Mishra","Babula","Munna","Gopal Shaw","Mohan","Mur
 
 function blankMembers() {
   const names = (KITTY && KITTY.names) || [];
-  return Array.from({ length: CFG.members }, (_, i) => ({ id: i + 1, name: names[i] || ("Member " + (i + 1)), phone: "" }));
+  return Array.from({ length: CFG.members }, (_, i) => ({ id: i + 1, name: names[i] || (tr("Member ", "सदस्य ") + (i + 1)), phone: "" }));
 }
 function sampleState() {
   if (!KITTY || !KITTY.sample) return freshState();
@@ -205,7 +219,7 @@ function SummaryCard({ icon, label, hi, value, sub }) {
     <div className="bg-surface border border-line rounded-2xl p-4 flex flex-col gap-1 min-w-0">
       <div className="flex items-center gap-2 text-muted">
         <span className="w-8 h-8 rounded-full bg-accentSoft text-accent grid place-items-center shrink-0"><Icon name={icon} className="w-4 h-4" /></span>
-        <span className="text-[13px] font-semibold leading-tight">{label}<span className="block text-[12px] font-medium">{hi}</span></span>
+        <span className="text-[13px] font-semibold leading-tight">{tr(label, hi)}</span>
       </div>
       <div className="num text-xl sm:text-2xl font-semibold mt-1 truncate">{value}</div>
       <div className="text-[12.5px] text-muted leading-snug">{sub}</div>
@@ -234,7 +248,7 @@ function saveFile({ filename, data }) {
 }
 
 /* ---------- App ---------- */
-function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
+function App({ kitty, kitties, onSwitch, onNew, onEdit, onLang }) {
   const [state, setState] = useState(loadState);
   const [query, setQuery] = useState("");
   const [editMembers, setEditMembers] = useState(false);
@@ -271,8 +285,8 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
     const prev = month.payments[id] || {};
     setPayment(id, { paid, amount: paid ? (prev.amount || (c ? String(round2(c.payable)) : String(CFG.inst))) : "" });
   };
-  const closeMonth = () => { updateMonth({ locked: true, lockedAt: new Date().toISOString() }); setConfirmLock(false); setToast(`Month ${m} submit ho gaya · ab locked hai`); };
-  const reopenMonth = () => { updateMonth({ locked: false }); setConfirmUnlock(false); setToast(`Month ${m} edit ke liye khul gaya`); };
+  const closeMonth = () => { updateMonth({ locked: true, lockedAt: new Date().toISOString() }); setConfirmLock(false); setToast(tr(`Month ${m} submitted · now locked`, `महीना ${m} सबमिट हो गया · अब लॉक है`)); };
+  const reopenMonth = () => { updateMonth({ locked: false }); setConfirmUnlock(false); setToast(tr(`Month ${m} is open for editing`, `महीना ${m} बदलाव के लिए खुल गया`)); };
   const updateMember = (id, patch) => setState((s) => ({ ...s, members: s.members.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
 
   /* Who has already lifted the pot, and in which month */
@@ -349,43 +363,43 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
   const shareText = useMemo(() => {
     const L = [];
     L.push(`*${CFG.title}*`);
-    L.push(`Month ${m} / ${CFG.members} ka hisaab`);
+    L.push(tr(`Month ${m} / ${CFG.members} account`, `महीना ${m} / ${CFG.members} का हिसाब`));
     L.push("");
     if (c && c.promoter) {
-      L.push(`Promoter month: is mahine koi boli nahi.`);
-      L.push(`Poora pot ${inr(CFG.pot)} promoter${winner ? " (" + winner.name + ")" : ""} ko.`);
+      L.push(tr("Promoter month: no boli (auction) this month.", "प्रमोटर महीना: इस महीने कोई बोली नहीं।"));
+      L.push(tr(`Full pot ${inr(CFG.pot)} goes to the promoter${winner ? " (" + winner.name + ")" : ""}.`, `पूरा पॉट ${inr(CFG.pot)} प्रमोटर${winner ? " (" + winner.name + ")" : ""} को।`));
       L.push("");
-      L.push(`*Is mahine har member ko dena hai: ${inr(CFG.inst)} (full)*`);
+      L.push(tr(`*Each member pays this month: ${inr(CFG.inst)} (full)*`, `*इस महीने हर सदस्य को देना है: ${inr(CFG.inst)} (पूरा)*`));
     } else if (c) {
-      L.push(`Winning discount (boli): ${inr(c.D)}`);
-      L.push(`Winner: ${winner ? winner.name : "—"} · Payout ${inr(c.winnerPayout)}`);
-      L.push(`Bonus: ${BONUS.map((b, i) => `${b.rank} ${month.callers[i] || "—"} ${inr(b.amt)}`).join(", ")}`);
-      L.push(`Dividend per member (labhansh): ${inr(round2(c.perMember))}`);
-      if (c.roundExtra) L.push(`₹100 rounding ka extra ${inr(c.roundExtra)} promoter ko`);
+      L.push(tr(`Winning discount (boli): ${inr(c.D)}`, `जीतने वाली बोली: ${inr(c.D)}`));
+      L.push(tr(`Winner: ${winner ? winner.name : "—"} · Payout ${inr(c.winnerPayout)}`, `विजेता: ${winner ? winner.name : "—"} · भुगतान ${inr(c.winnerPayout)}`));
+      L.push(tr("Bonus: ", "बोनस: ") + BONUS.map((b, i) => `${rankName(i)} ${month.callers[i] || "—"} ${inr(b.amt)}`).join(", "));
+      L.push(tr(`Dividend per member: ${inr(round2(c.perMember))}`, `प्रति सदस्य लाभांश: ${inr(round2(c.perMember))}`));
+      if (c.roundExtra) L.push(tr(`Rounding extra ${inr(c.roundExtra)} goes to the promoter`, `राउंडिंग का अतिरिक्त ${inr(c.roundExtra)} प्रमोटर को`));
       L.push("");
-      L.push(`*Is mahine har member ko dena hai: ${inr(round2(c.payable))}*`);
+      L.push(tr(`*Each member pays this month: ${inr(round2(c.payable))}*`, `*इस महीने हर सदस्य को देना है: ${inr(round2(c.payable))}*`));
     } else {
-      L.push(`Boli abhi baaki hai. Installment: ${inr(CFG.inst)}`);
+      L.push(tr(`Boli not done yet. Installment: ${inr(CFG.inst)}`, `बोली अभी बाकी है। किश्त: ${inr(CFG.inst)}`));
     }
-    if (month.locked) L.push("✅ Month submitted / closed");
-    L.push(`Paid: ${paidCount}/${CFG.members}`);
-    if (pending.length && pending.length < CFG.members) L.push(`Pending: ${pending.map((x) => x.name).join(", ")}`);
+    if (month.locked) L.push(tr("✅ Month submitted / closed", "✅ महीना सबमिट / बंद"));
+    L.push(tr(`Paid: ${paidCount}/${CFG.members}`, `जमा: ${paidCount}/${CFG.members}`));
+    if (pending.length && pending.length < CFG.members) L.push(tr("Pending: ", "बाकी: ") + pending.map((x) => x.name).join(", "));
     L.push("");
-    L.push("Dhanyavaad 🙏");
+    L.push(tr("Thank you 🙏", "धन्यवाद 🙏"));
     return L.join("\n");
   }, [m, c, winner, month.callers, month.locked, paidCount, pending.length]);
   const waHref = "https://wa.me/?text=" + encodeURIComponent(shareText);
 
   const reportText = (() => {
-    const L = [`*${CFG.title}*`, `Consolidated Report · ${report.months} month complete`, ""];
+    const L = [`*${CFG.title}*`, tr(`Consolidated Report · ${report.months} month(s) complete`, `समेकित रिपोर्ट · ${report.months} महीने पूरे`), ""];
     report.rows.forEach((x) => L.push(x.promoter
-      ? `M${x.k}: Promoter month · ${x.winner} · ${inr(x.winnerPayout)} · sab ne ${inr(CFG.inst)}`
-      : `M${x.k}: ${x.winner} · boli ${inr(x.D)} (${pct(x.boliPct)}) · dividend ${inr(x.perMember)} (${pct(x.divPct)}) · payable ${inr(x.payable)}`));
+      ? tr(`M${x.k}: Promoter month · ${x.winner} · ${inr(x.winnerPayout)} · everyone paid ${inr(CFG.inst)}`, `M${x.k}: प्रमोटर महीना · ${x.winner} · ${inr(x.winnerPayout)} · सबने ${inr(CFG.inst)} दिए`)
+      : tr(`M${x.k}: ${x.winner} · boli ${inr(x.D)} (${pct(x.boliPct)}) · dividend ${inr(x.perMember)} (${pct(x.divPct)}) · payable ${inr(x.payable)}`, `M${x.k}: ${x.winner} · बोली ${inr(x.D)} (${pct(x.boliPct)}) · लाभांश ${inr(x.perMember)} (${pct(x.divPct)}) · देय ${inr(x.payable)}`)));
     L.push("");
-    L.push(`Avg boli: ${pct(report.avgBoliPct)} · Total boli ${inr(report.totalBoli)}`);
-    L.push(`Ek member ne diya: ${inr(report.memberPaid)} / ${inr(report.memberGross)} · Bachat ${inr(report.memberGross - report.memberPaid)} (${pct(report.savePct)})`);
-    L.push(`Total dividend per member: ${inr(report.dividendPerMember)}`);
-    L.push(`Collection: ${inr(round2(report.collected))} / ${inr(report.expected)} (${pct(report.collPct)})`);
+    L.push(tr(`Avg boli: ${pct(report.avgBoliPct)} · Total boli ${inr(report.totalBoli)}`, `औसत बोली: ${pct(report.avgBoliPct)} · कुल बोली ${inr(report.totalBoli)}`));
+    L.push(tr(`One member paid: ${inr(report.memberPaid)} / ${inr(report.memberGross)} · Saving ${inr(report.memberGross - report.memberPaid)} (${pct(report.savePct)})`, `एक सदस्य ने दिया: ${inr(report.memberPaid)} / ${inr(report.memberGross)} · बचत ${inr(report.memberGross - report.memberPaid)} (${pct(report.savePct)})`));
+    L.push(tr(`Total dividend per member: ${inr(report.dividendPerMember)}`, `प्रति सदस्य कुल लाभांश: ${inr(report.dividendPerMember)}`));
+    L.push(tr(`Collection: ${inr(round2(report.collected))} / ${inr(report.expected)} (${pct(report.collPct)})`, `वसूली: ${inr(round2(report.collected))} / ${inr(report.expected)} (${pct(report.collPct)})`));
     return L.join("\n");
   })();
   const reportWaHref = "https://wa.me/?text=" + encodeURIComponent(reportText);
@@ -417,13 +431,13 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
       doc.setFontSize(8.5); doc.setTextColor(90, 105, 95);
       doc.text("(P) = Promoter month. Only submitted months are included. Generated " + new Date().toLocaleString("en-IN"), 36, doc.internal.pageSize.getHeight() - 20);
       await saveFile({ filename: `${fileBase()}-Report.pdf`, data: doc.output("blob") });
-      setToast("Report PDF saved");
-    } catch (e) { setToast("Report PDF couldn't be created."); }
+      setToast(tr("Report PDF saved", "रिपोर्ट PDF सेव हो गई"));
+    } catch (e) { setToast(tr("Report PDF couldn't be created.", "रिपोर्ट PDF नहीं बन पाई।")); }
   };
 
   const copyShare = async () => {
-    try { await navigator.clipboard.writeText(shareText); setToast("Message copied · WhatsApp mein paste karein"); }
-    catch (e) { setToast("Copy blocked here. Use the WhatsApp button."); }
+    try { await navigator.clipboard.writeText(shareText); setToast(tr("Message copied · paste it in WhatsApp", "संदेश कॉपी हो गया · WhatsApp में पेस्ट करें")); }
+    catch (e) { setToast(tr("Copy blocked here. Use the WhatsApp button.", "यहाँ कॉपी नहीं हो सका। WhatsApp बटन इस्तेमाल करें।")); }
   };
 
   /* ---------- PDF ---------- */
@@ -473,16 +487,16 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
       doc.setFontSize(8.5); doc.setTextColor(90, 105, 95);
       doc.text(`Generated ${new Date().toLocaleString("en-IN")}`, 40, H - 24);
       await saveFile({ filename: `${fileBase()}-Month-${m}.pdf`, data: doc.output("blob") });
-      setToast("PDF saved");
+      setToast(tr("PDF saved", "PDF सेव हो गई"));
     } catch (e) {
-      if (e && e.code === "declined") setToast("Download cancelled");
-      else setToast("PDF couldn't be created. Please try again.");
+      if (e && e.code === "declined") setToast(tr("Download cancelled", "डाउनलोड रद्द"));
+      else setToast(tr("PDF couldn't be created. Please try again.", "PDF नहीं बन पाई। फिर से कोशिश करें।"));
     }
   };
 
   const backup = async () => {
-    try { await saveFile({ filename: `${fileBase()}-backup.json`, data: JSON.stringify(state, null, 2) }); setToast("Backup saved"); }
-    catch (e) { setToast(e?.code === "declined" ? "Backup cancelled" : "Backup failed"); }
+    try { await saveFile({ filename: `${fileBase()}-backup.json`, data: JSON.stringify(state, null, 2) }); setToast(tr("Backup saved", "बैकअप सेव हो गया")); }
+    catch (e) { setToast(e?.code === "declined" ? tr("Backup cancelled", "बैकअप रद्द") : tr("Backup failed", "बैकअप नहीं हो पाया")); }
   };
   const restore = (file) => {
     const r = new FileReader();
@@ -490,8 +504,8 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
       try {
         const s = JSON.parse(r.result);
         if (!Array.isArray(s.members) || s.members.length !== CFG.members || !s.months) throw new Error();
-        setState({ ...s, isSample: false }); setToast("Backup restored");
-      } catch (e) { setToast(`This file isn't a backup of ${CFG.title} (${CFG.members} members).`); }
+        setState({ ...s, isSample: false }); setToast(tr("Backup restored", "बैकअप वापस आ गया"));
+      } catch (e) { setToast(tr(`This file isn't a backup of ${CFG.title} (${CFG.members} members).`, `यह फ़ाइल ${CFG.title} (${CFG.members} सदस्य) का बैकअप नहीं है।`)); }
     };
     r.readAsText(file);
   };
@@ -508,32 +522,33 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
           <div className="w-10 h-10 rounded-xl bg-accent text-onAccent grid place-items-center font-extrabold text-lg shrink-0" aria-hidden="true">{kitty.id === "om" ? "ॐ" : (CFG.title.trim()[0] || "K").toUpperCase()}</div>
           <div className="min-w-0 flex-1">
             <h1 className="font-extrabold text-[17px] sm:text-xl leading-tight truncate">{CFG.title}</h1>
-            <p className="text-[12.5px] text-muted leading-tight">{CFG.members} members · {inr(CFG.inst)} kisht · Discount (boli) kitty</p>
+            <p className="text-[12.5px] text-muted leading-tight">{tr(`${CFG.members} members · ${inr(CFG.inst)} installment · Discount (boli) kitty`, `${CFG.members} सदस्य · ${inr(CFG.inst)} किश्त · बोली वाली किटी`)}</p>
           </div>
           <a href={waHref} target="_blank" rel="noopener noreferrer" className="hidden sm:inline-flex items-center gap-2 bg-accent text-onAccent px-3.5 py-2 rounded-xl font-semibold hover:opacity-90">
-            <Icon name="wa" className="w-4 h-4" /> Share
+            <Icon name="wa" className="w-4 h-4" /> {tr("Share", "भेजें")}
           </a>
+          <LangToggle onToggle={onLang} />
         </div>
         <div className="max-w-6xl mx-auto px-4 pb-3 flex flex-wrap items-center gap-2">
-          <label className="sr-only" htmlFor="kitty-switch">Choose kitty</label>
+          <label className="sr-only" htmlFor="kitty-switch">{tr("Choose kitty", "किटी चुनें")}</label>
           <select id="kitty-switch" className="field !w-auto !py-1.5 text-sm max-w-[60vw]" value={kitty.id} onChange={(e) => onSwitch(e.target.value)}>
             {kitties.map((k) => <option key={k.id} value={k.id}>{k.title}</option>)}
           </select>
-          <button onClick={onNew} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-[14px] bg-accentSoft text-accent">+ New kitty</button>
-          <button onClick={onEdit} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-[14px] bg-surface2 border border-line"><Icon name="edit" className="w-4 h-4" /> Kitty settings</button>
+          <button onClick={onNew} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-[14px] bg-accentSoft text-accent">{tr("+ New kitty", "+ नई किटी")}</button>
+          <button onClick={onEdit} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold text-[14px] bg-surface2 border border-line"><Icon name="edit" className="w-4 h-4" /> {tr("Kitty settings", "किटी सेटिंग")}</button>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-5 flex flex-col gap-5">
         {state.isSample && (
           <div className="bg-goldSoft border border-line rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <p className="flex-1 text-[14px]"><b>Example data.</b> Names, bids and payments below are samples so you can see how it works. Apna asli data daalne ke liye clear karein.</p>
+            <p className="flex-1 text-[14px]">{tr(<><b>Example data.</b> Names, bids and payments below are samples so you can see how it works. Clear them to enter your real data.</>, <><b>नमूना डेटा।</b> नीचे के नाम, बोली और भुगतान सिर्फ़ समझाने के लिए हैं। अपना असली डेटा डालने के लिए साफ़ करें।</>)}</p>
             {!confirmReset ? (
-              <button onClick={() => setConfirmReset(true)} className="px-4 py-2 rounded-xl bg-surface border border-line font-semibold">Start fresh</button>
+              <button onClick={() => setConfirmReset(true)} className="px-4 py-2 rounded-xl bg-surface border border-line font-semibold">{tr("Start fresh", "नए सिरे से शुरू करें")}</button>
             ) : (
               <div className="flex gap-2">
-                <button onClick={() => { setState(freshState()); setConfirmReset(false); setToast("Cleared. Add your members' names."); setEditMembers(true); }} className="px-4 py-2 rounded-xl bg-warn text-white font-semibold" style={{ color: "var(--surface)" }}>Haan, clear karo</button>
-                <button onClick={() => setConfirmReset(false)} className="px-4 py-2 rounded-xl bg-surface border border-line font-semibold">Cancel</button>
+                <button onClick={() => { setState(freshState()); setConfirmReset(false); setToast(tr("Cleared. Add your members' names.", "साफ़ हो गया। अपने सदस्यों के नाम जोड़ें।")); setEditMembers(true); }} className="px-4 py-2 rounded-xl bg-warn text-white font-semibold" style={{ color: "var(--surface)" }}>{tr("Yes, clear it", "हाँ, साफ़ करें")}</button>
+                <button onClick={() => setConfirmReset(false)} className="px-4 py-2 rounded-xl bg-surface border border-line font-semibold">{tr("Cancel", "रद्द करें")}</button>
               </div>
             )}
           </div>
@@ -541,18 +556,18 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
 
         {/* Summary cards */}
         <section className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-label="Summary">
-          <SummaryCard icon="pot" label="Total Pot" hi="कुल पॉट" value={inr(CFG.pot)} sub={`${CFG.members} × ${inr(CFG.inst)} every month`} />
-          <SummaryCard icon="fee" label="Dividend Given" hi="लाभांश (अब तक)" value={inr(round2(totals.dividend))} sub={`Across ${totals.auctions} boli · rounding ${inr(totals.extra)} to promoter`} />
-          <SummaryCard icon="gift" label="Bonus Given" hi="बोनस (अब तक)" value={inr(totals.bonus)} sub={`${totals.auctions} months × ${inr(BONUS_TOTAL)}`} />
-          <SummaryCard icon="wallet" label="Collected Till Date" hi="कुल जमा" value={inr(totals.collected)} sub={`${totals.auctions} of ${CFG.members} months auctioned`} />
+          <SummaryCard icon="pot" label="Total Pot" hi="कुल पॉट" value={inr(CFG.pot)} sub={tr(`${CFG.members} × ${inr(CFG.inst)} every month`, `हर महीने ${CFG.members} × ${inr(CFG.inst)}`)} />
+          <SummaryCard icon="fee" label="Dividend Given" hi="लाभांश (अब तक)" value={inr(round2(totals.dividend))} sub={tr(`Across ${totals.auctions} boli · rounding ${inr(totals.extra)} to promoter`, `${totals.auctions} बोली में · राउंडिंग ${inr(totals.extra)} प्रमोटर को`)} />
+          <SummaryCard icon="gift" label="Bonus Given" hi="बोनस (अब तक)" value={inr(totals.bonus)} sub={tr(`${totals.auctions} months × ${inr(BONUS_TOTAL)}`, `${totals.auctions} महीने × ${inr(BONUS_TOTAL)}`)} />
+          <SummaryCard icon="wallet" label="Collected Till Date" hi="कुल जमा" value={inr(totals.collected)} sub={tr(`${totals.auctions} of ${CFG.members} months auctioned`, `${CFG.members} में से ${totals.auctions} महीनों की बोली हुई`)} />
         </section>
 
         {/* Month selector */}
         <section className="bg-surface border border-line rounded-2xl p-3 sm:p-4" aria-label="Month selector">
           <div className="flex items-center justify-between gap-3 mb-2 px-1">
-            <h2 className="font-bold">Mahina chunein <span className="text-muted font-medium text-sm">· Select month</span></h2>
-            <select id="month-select" aria-label="Select month" className="field !w-auto !py-1.5 text-sm" value={m} onChange={(e) => setState((s) => ({ ...s, current: Number(e.target.value) }))}>
-              {Array.from({ length: CFG.members }, (_, i) => <option key={i} value={i + 1}>Month {i + 1}</option>)}
+            <h2 className="font-bold">{tr("Select month", "महीना चुनें")}</h2>
+            <select id="month-select" aria-label={tr("Select month", "महीना चुनें")} className="field !w-auto !py-1.5 text-sm" value={m} onChange={(e) => setState((s) => ({ ...s, current: Number(e.target.value) }))}>
+              {Array.from({ length: CFG.members }, (_, i) => <option key={i} value={i + 1}>{tr("Month", "महीना")} {i + 1}</option>)}
             </select>
           </div>
           <div className="chips flex gap-2 overflow-x-auto pb-2 px-1" role="tablist">
@@ -569,10 +584,10 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
             })}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted px-1 pt-1">
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-accent" />All paid</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gold" />Collection pending</span>
-            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-line" />No boli yet</span>
-            <span className="flex items-center gap-1.5"><Icon name="lock" className="w-3 h-3" />Submitted</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-accent" />{tr("All paid", "सबने जमा किया")}</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gold" />{tr("Collection pending", "वसूली बाकी")}</span>
+            <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-line" />{tr("No boli yet", "अभी बोली नहीं")}</span>
+            <span className="flex items-center gap-1.5"><Icon name="lock" className="w-3 h-3" />{tr("Submitted", "सबमिट")}</span>
           </div>
         </section>
 
@@ -582,13 +597,13 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
           <div className="flex-1 min-w-0">
             {locked ? (
               <>
-                <p className="font-bold">Month {m} submit ho chuka hai · Locked</p>
-                <p className="text-[13px] text-muted">{month.lockedAt ? "Submitted " + new Date(month.lockedAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) + ". " : ""}Badlav karne ke liye pehle "Edit karein" dabayein.</p>
+                <p className="font-bold">{tr(`Month ${m} is submitted · Locked`, `महीना ${m} सबमिट हो चुका है · लॉक`)}</p>
+                <p className="text-[13px] text-muted">{month.lockedAt ? tr("Submitted ", "सबमिट: ") + new Date(month.lockedAt).toLocaleString(tr("en-IN", "hi-IN"), { dateStyle: "medium", timeStyle: "short" }) + ". " : ""}{tr('To make changes, first tap "Edit".', 'बदलाव के लिए पहले "बदलें" दबाएँ।')}</p>
               </>
             ) : (
               <>
-                <p className="font-bold">Month {m} khula hai · Entry chalu</p>
-                <p className="text-[13px] text-muted">Boli aur payment poori hone ke baad Submit dabayein. Submit ke baad is mahine mein kuch badal nahi payega.</p>
+                <p className="font-bold">{tr(`Month ${m} is open · Entry on`, `महीना ${m} खुला है · एंट्री चालू`)}</p>
+                <p className="text-[13px] text-muted">{tr("Tap Submit once the boli and payments are complete. After submitting, nothing in this month can be changed.", "बोली और भुगतान पूरे होने के बाद सबमिट दबाएँ। सबमिट के बाद इस महीने में कुछ नहीं बदलेगा।")}</p>
               </>
             )}
           </div>
@@ -596,21 +611,21 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
             {locked ? (
               confirmUnlock ? (
                 <>
-                  <button onClick={reopenMonth} className="px-4 py-2 rounded-xl font-semibold bg-warn" style={{ color: "var(--surface)" }}>Haan, edit karo</button>
-                  <button onClick={() => setConfirmUnlock(false)} className="px-4 py-2 rounded-xl font-semibold bg-surface border border-line">Cancel</button>
+                  <button onClick={reopenMonth} className="px-4 py-2 rounded-xl font-semibold bg-warn" style={{ color: "var(--surface)" }}>{tr("Yes, edit", "हाँ, बदलें")}</button>
+                  <button onClick={() => setConfirmUnlock(false)} className="px-4 py-2 rounded-xl font-semibold bg-surface border border-line">{tr("Cancel", "रद्द करें")}</button>
                 </>
               ) : (
-                <button onClick={() => setConfirmUnlock(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-surface border border-line"><Icon name="edit" className="w-4 h-4" /> Edit karein</button>
+                <button onClick={() => setConfirmUnlock(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-surface border border-line"><Icon name="edit" className="w-4 h-4" /> {tr("Edit", "बदलें")}</button>
               )
             ) : !c ? (
-              <span className="text-[13px] text-muted">Submit se pehle boli daalein</span>
+              <span className="text-[13px] text-muted">{tr("Enter the boli before submitting", "सबमिट से पहले बोली डालें")}</span>
             ) : confirmLock ? (
               <>
-                <button onClick={closeMonth} className="px-4 py-2 rounded-xl font-semibold bg-accent text-onAccent">Haan, submit karo</button>
-                <button onClick={() => setConfirmLock(false)} className="px-4 py-2 rounded-xl font-semibold bg-surface border border-line">Cancel</button>
+                <button onClick={closeMonth} className="px-4 py-2 rounded-xl font-semibold bg-accent text-onAccent">{tr("Yes, submit", "हाँ, सबमिट करें")}</button>
+                <button onClick={() => setConfirmLock(false)} className="px-4 py-2 rounded-xl font-semibold bg-surface border border-line">{tr("Cancel", "रद्द करें")}</button>
               </>
             ) : (
-              <button onClick={() => setConfirmLock(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-accent text-onAccent"><Icon name="lock" className="w-4 h-4" /> Submit / Month close</button>
+              <button onClick={() => setConfirmLock(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold bg-accent text-onAccent"><Icon name="lock" className="w-4 h-4" /> {tr("Submit / Close month", "सबमिट / महीना बंद")}</button>
             )}
           </div>
         </section>
@@ -620,26 +635,26 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
           <div className="lg:col-span-2 flex flex-col gap-5 min-w-0">
             <div className="hero rounded-3xl p-5 sm:p-6 relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <span className="text-[13px] font-semibold tracking-wide uppercase" style={{ color: "var(--hero-muted)" }}>Month {m} / {CFG.members}</span>
-                <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.12)" }}>{paidCount}/{CFG.members} paid</span>
+                <span className="text-[13px] font-semibold tracking-wide uppercase" style={{ color: "var(--hero-muted)" }}>{tr("Month", "महीना")} {m} / {CFG.members}</span>
+                <span className="text-[12px] px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,.12)" }}>{paidCount}/{CFG.members} {tr("paid", "जमा")}</span>
               </div>
-              <p className="mt-4 text-[14px]" style={{ color: "var(--hero-muted)" }}>Is mahine har member ko dena hai</p>
+              <p className="mt-4 text-[14px]" style={{ color: "var(--hero-muted)" }}>{tr("Each member pays this month", "इस महीने हर सदस्य को देना है")}</p>
               <p className="num text-[40px] sm:text-[46px] font-semibold leading-tight">{c ? inr(round2(c.payable)) : inr(CFG.inst)}</p>
-              <p className="text-[13px]" style={{ color: "var(--hero-muted)" }}>{isPromoter ? "Promoter month · full installment, no dividend" : "Each member payable " + (c ? "after dividend" : "· boli not entered yet")}</p>
+              <p className="text-[13px]" style={{ color: "var(--hero-muted)" }}>{isPromoter ? tr("Promoter month · full installment, no dividend", "प्रमोटर महीना · पूरी किश्त, कोई लाभांश नहीं") : (c ? tr("Payable per member after dividend", "लाभांश के बाद हर सदस्य का देय") : tr("Payable per member · boli not entered yet", "हर सदस्य का देय · अभी बोली नहीं डाली"))}</p>
               <div className="grid grid-cols-2 gap-3 mt-5">
                 <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,.10)" }}>
-                  <p className="text-[12px]" style={{ color: "var(--hero-muted)" }}>Dividend / member</p>
+                  <p className="text-[12px]" style={{ color: "var(--hero-muted)" }}>{tr("Dividend / member", "लाभांश / सदस्य")}</p>
                   <p className="num text-lg font-semibold">{c ? inr(round2(c.perMember)) : "—"}</p>
                 </div>
                 <div className="rounded-2xl p-3" style={{ background: "rgba(255,255,255,.10)" }}>
-                  <p className="text-[12px]" style={{ color: "var(--hero-muted)" }}>{isPromoter ? "Promoter gets" : "Winner payout"}</p>
+                  <p className="text-[12px]" style={{ color: "var(--hero-muted)" }}>{isPromoter ? tr("Promoter gets", "प्रमोटर को मिलेगा") : tr("Winner payout", "विजेता को भुगतान")}</p>
                   <p className="num text-lg font-semibold">{c ? inr(c.winnerPayout) : "—"}</p>
                 </div>
               </div>
               <div className="mt-5">
                 <div className="flex justify-between text-[12.5px] mb-1.5" style={{ color: "var(--hero-muted)" }}>
-                  <span>Collected <b className="num" style={{ color: "var(--hero-fg)" }}>{inr(round2(collectedThisMonth))}</b></span>
-                  <span>of <span className="num">{inr(round2(expected))}</span></span>
+                  <span>{tr("Collected", "जमा")} <b className="num" style={{ color: "var(--hero-fg)" }}>{inr(round2(collectedThisMonth))}</b></span>
+                  <span>{tr("of", "में से")} <span className="num">{inr(round2(expected))}</span></span>
                 </div>
                 <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,.15)" }}>
                   <div className="h-full rounded-full" style={{ width: collBarPct + "%", background: "var(--hero-fg)" }} />
@@ -649,24 +664,25 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
 
             {/* Share & export */}
             <div className="bg-surface border border-line rounded-2xl p-4 flex flex-col gap-3">
-              <h2 className="font-bold">Share & Export <span className="text-muted font-medium text-sm">· भेजें</span></h2>
+              <h2 className="font-bold">{tr("Share & Export", "भेजें और डाउनलोड")}</h2>
               <div className="grid grid-cols-2 gap-2">
                 <a href={waHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold bg-accent text-onAccent hover:opacity-90">
                   <Icon name="wa" className="w-4 h-4" /> WhatsApp
                 </a>
                 <button onClick={exportPdf} className={"inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold border border-line " + (true ? "bg-surface2 hover:border-accent" : "opacity-50 cursor-not-allowed")}>
-                  <Icon name="pdf" className="w-4 h-4" /> Export PDF
+                  <Icon name="pdf" className="w-4 h-4" /> {tr("Export PDF", "PDF डाउनलोड")}
                 </button>
                 <button onClick={copyShare} className="inline-flex items-center justify-center gap-2 rounded-xl py-2 text-[14px] font-semibold border border-line bg-surface2 hover:border-accent">
-                  <Icon name="copy" className="w-4 h-4" /> Copy message
+                  <Icon name="copy" className="w-4 h-4" /> {tr("Copy message", "संदेश कॉपी करें")}
                 </button>
                 <button onClick={backup} className={"inline-flex items-center justify-center gap-2 rounded-xl py-2 text-[14px] font-semibold border border-line " + (true ? "bg-surface2 hover:border-accent" : "opacity-50 cursor-not-allowed")}>
-                  <Icon name="save" className="w-4 h-4" /> Backup data
+                  <Icon name="save" className="w-4 h-4" /> {tr("Backup data", "डेटा बैकअप")}
                 </button>
               </div>
-              <button onClick={() => fileRef.current?.click()} className="text-[13px] text-accent font-semibold self-start inline-flex items-center gap-1.5"><Icon name="upload" className="w-4 h-4" /> Restore from backup file</button>
+              <button onClick={() => fileRef.current?.click()} className="text-[13px] text-accent font-semibold self-start inline-flex items-center gap-1.5"><Icon name="upload" className="w-4 h-4" /> {tr("Restore from backup file", "बैकअप फ़ाइल से वापस लाएँ")}</button>
               <input ref={fileRef} id="restore-file" type="file" accept=".json,application/json" hidden onChange={(e) => { if (e.target.files[0]) restore(e.target.files[0]); e.target.value = ""; }} />
-              <p className="text-[12px] text-muted leading-snug">Data is saved in this browser only. Take a backup and restore it on another phone if needed.</p>
+              <p className="text-[12px] text-muted leading-snug">{tr("Data is saved in this browser only. Take a backup and restore it on another phone if needed.", "डेटा सिर्फ़ इसी ब्राउज़र में सेव होता है। ज़रूरत हो तो बैकअप लेकर दूसरे फ़ोन में वापस लाएँ।")}</p>
+              {LANG === "hi" && <p className="text-[12px] text-muted leading-snug">PDF फ़ाइलें अंग्रेज़ी में बनती हैं, ताकि हर फ़ोन पर सही दिखें।</p>}
             </div>
           </div>
 
@@ -674,97 +690,97 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
             {/* Auction inputs */}
             {isPromoter ? (
             <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5">
-              <h2 className="font-bold text-[17px]">Promoter month <span className="text-muted font-medium text-sm">· Month {m} · कोई बोली नहीं</span></h2>
-              <p className="mt-2 text-[14.5px]">Is mahine boli nahi hogi. Har member poora <b className="num">{inr(CFG.inst)}</b> dega aur poora pot <b className="num">{inr(CFG.pot)}</b> promoter ko jayega. No dividend, no bonus.</p>
+              <h2 className="font-bold text-[17px]">{tr("Promoter month", "प्रमोटर महीना")} <span className="text-muted font-medium text-sm">· {tr(`Month ${m} · no boli`, `महीना ${m} · कोई बोली नहीं`)}</span></h2>
+              <p className="mt-2 text-[14.5px]">{tr(<>There is no boli this month. Every member pays the full <b className="num">{inr(CFG.inst)}</b> and the full pot <b className="num">{inr(CFG.pot)}</b> goes to the promoter. No dividend, no bonus.</>, <>इस महीने बोली नहीं होगी। हर सदस्य पूरा <b className="num">{inr(CFG.inst)}</b> देगा और पूरा पॉट <b className="num">{inr(CFG.pot)}</b> प्रमोटर को जाएगा। कोई लाभांश नहीं, कोई बोनस नहीं।</>)}</p>
               <label className="flex flex-col gap-1.5 mt-4 sm:max-w-sm" htmlFor="promoter">
-                <span className="label">Promoter · प्रमोटर</span>
+                <span className="label">{tr("Promoter", "प्रमोटर")}</span>
                 <select id="promoter" disabled={locked} className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
-                  <option value="">Select promoter…</option>
+                  <option value="">{tr("Select promoter…", "प्रमोटर चुनें…")}</option>
                   {state.members.map((x) => <option key={x.id} value={x.id}>{x.id}. {x.name}</option>)}
                 </select>
               </label>
             </div>
             ) : (
             <div className="bg-surface border border-line rounded-2xl p-4 sm:p-5">
-              <h2 className="font-bold text-[17px]">Boli details <span className="text-muted font-medium text-sm">· Month {m} auction</span></h2>
+              <h2 className="font-bold text-[17px]">{tr("Boli details", "बोली का विवरण")} <span className="text-muted font-medium text-sm">· {tr(`Month ${m} auction`, `महीना ${m} की बोली`)}</span></h2>
               <div className="grid sm:grid-cols-2 gap-4 mt-4">
                 <label className="flex flex-col gap-1.5" htmlFor="discount">
-                  <span className="label">Winning discount (₹) · सबसे ऊँची बोली</span>
-                  <input id="discount" disabled={locked} className="field num text-lg" type="number" inputMode="numeric" min="0" step="100" placeholder="e.g. 40000"
+                  <span className="label">{tr("Winning discount (₹)", "सबसे ऊँची बोली (₹)")}</span>
+                  <input id="discount" disabled={locked} className="field num text-lg" type="number" inputMode="numeric" min="0" step="100" placeholder={tr("e.g. 40000", "जैसे 40000")}
                     value={month.discount} onChange={(e) => updateMonth({ discount: e.target.value })} />
                 </label>
                 <label className="flex flex-col gap-1.5" htmlFor="winner">
-                  <span className="label">Winner · पॉट किसको मिला</span>
+                  <span className="label">{tr("Winner", "पॉट किसको मिला")}</span>
                   <select id="winner" disabled={locked} className="field" value={month.winnerId} onChange={(e) => updateMonth({ winnerId: e.target.value })}>
-                    <option value="">Select winner…</option>
+                    <option value="">{tr("Select winner…", "विजेता चुनें…")}</option>
                     {state.members.map((x) => {
                       const lifted = liftedIn[x.id];
                       const taken = lifted && lifted !== m;
-                      return <option key={x.id} value={x.id} disabled={taken}>{x.id}. {x.name}{taken ? ` (lifted M${lifted})` : ""}</option>;
+                      return <option key={x.id} value={x.id} disabled={taken}>{x.id}. {x.name}{taken ? tr(` (lifted M${lifted})`, ` (M${lifted} में उठाया)`) : ""}</option>;
                     })}
                   </select>
                 </label>
                 {BONUS.map((b, i) => (
                   <label key={b.rank} className="flex flex-col gap-1.5" htmlFor={"caller-" + i}>
-                    <span className="label">{b.label} name · बोनस {inr(b.amt)}</span>
-                    <input id={"caller-" + i} disabled={locked} className="field" list="member-names" placeholder={`${b.rank} highest bidder`}
+                    <span className="label">{tr(`${b.label} name · bonus ${inr(b.amt)}`, `${callerName(i)} का नाम · बोनस ${inr(b.amt)}`)}</span>
+                    <input id={"caller-" + i} disabled={locked} className="field" list="member-names" placeholder={tr(`${b.rank} highest bidder`, `${rankName(i)} सबसे ऊँची बोली वाला`)}
                       value={month.callers[i] || ""} onChange={(e) => { const cl = [...(month.callers || ["", "", ""])]; cl[i] = e.target.value; updateMonth({ callers: cl }); }} />
                   </label>
                 ))}
               </div>
               <datalist id="member-names">{state.members.map((x) => <option key={x.id} value={x.name} />)}</datalist>
-              {warnLow && <p className="mt-4 text-[13.5px] bg-warnSoft text-warn rounded-xl p-3">Discount is below {inr(BONUS_TOTAL)} (total bonus), so the dividend comes out negative and members pay more than {inr(CFG.inst)}. Please check the boli amount.</p>}
-              {warnHigh && <p className="mt-4 text-[13.5px] bg-warnSoft text-warn rounded-xl p-3">Discount is too high: the winner payout would be zero or less.</p>}
+              {warnLow && <p className="mt-4 text-[13.5px] bg-warnSoft text-warn rounded-xl p-3">{tr(`Discount is below ${inr(BONUS_TOTAL)} (total bonus), so the dividend comes out negative and members pay more than ${inr(CFG.inst)}. Please check the boli amount.`, `बोली ${inr(BONUS_TOTAL)} (कुल बोनस) से कम है, इसलिए लाभांश घाटे में है और सदस्यों को ${inr(CFG.inst)} से ज़्यादा देना होगा। कृपया बोली की रकम जाँचें।`)}</p>}
+              {warnHigh && <p className="mt-4 text-[13.5px] bg-warnSoft text-warn rounded-xl p-3">{tr("Discount is too high: the winner payout would be zero or less.", "बोली बहुत ज़्यादा है: विजेता को शून्य या उससे कम मिलेगा।")}</p>}
             </div>
             )}
 
             {/* Ledger breakdown + bonus */}
             <div className="grid md:grid-cols-5 gap-5">
               <div className="md:col-span-3 bg-surface border border-line rounded-2xl p-4 sm:p-5 min-w-0">
-                <h2 className="font-bold">Hisaab <span className="text-muted font-medium text-sm">· How it's calculated</span></h2>
+                <h2 className="font-bold">{tr("How it's calculated", "हिसाब")}</h2>
                 {c && c.promoter ? (
                   <div className="mt-2 text-[14.5px]">
-                    <LedgerRow op="" label={`${CFG.members} members × full installment`} hi="" value={`${CFG.members} × ${inr(CFG.inst)}`} />
-                    <LedgerRow op="=" label="Full pot to promoter" hi="प्रमोटर" value={inr(CFG.pot)} strong />
-                    <LedgerRow op="" label="Dividend / bonus" hi="" value="None" />
-                    <LedgerRow op="=" label="Payable" hi="full" value={inr(CFG.inst)} strong />
+                    <LedgerRow op="" label={tr(`${CFG.members} members × full installment`, `${CFG.members} सदस्य × पूरी किश्त`)} hi="" value={`${CFG.members} × ${inr(CFG.inst)}`} />
+                    <LedgerRow op="=" label={tr("Full pot to promoter", "पूरा पॉट प्रमोटर को")} hi="" value={inr(CFG.pot)} strong />
+                    <LedgerRow op="" label={tr("Dividend / bonus", "लाभांश / बोनस")} hi="" value={tr("None", "कुछ नहीं")} />
+                    <LedgerRow op="=" label={tr("Payable", "देय")} hi={tr("full", "पूरा")} value={inr(CFG.inst)} strong />
                   </div>
                 ) : c ? (
                   <div className="mt-2 text-[14.5px]">
-                    <LedgerRow op="" label="Full pot" hi="कुल पॉट" value={inr(CFG.pot)} />
-                    <LedgerRow op="−" label="Winning discount" hi="बोली" value={inr(c.D)} />
-                    <LedgerRow op="=" label="Winner payout" hi="" value={inr(c.winnerPayout)} strong />
+                    <LedgerRow op="" label={tr("Full pot", "कुल पॉट")} hi="" value={inr(CFG.pot)} />
+                    <LedgerRow op="−" label={tr("Winning discount", "जीतने वाली बोली")} hi="" value={inr(c.D)} />
+                    <LedgerRow op="=" label={tr("Winner payout", "विजेता को भुगतान")} hi="" value={inr(c.winnerPayout)} strong />
                     <div className="h-3" />
-                    <LedgerRow op="" label="Discount" hi="डिविडेंड पॉट" value={inr(c.dividendPot)} />
-                    <LedgerRow op="−" label="Total bonus" hi="" value={inr(BONUS_TOTAL)} tone="gold" />
-                    <LedgerRow op="=" label="Net dividend" hi="" value={inr(c.netDividend)} strong tone={c.netDividend < 0 ? "warn" : ""} />
-                    <LedgerRow op="÷" label={`${CFG.members} members`} hi="" value={inr(round2(c.perExact)) + " each"} />
-                    <LedgerRow op="" label="Exact payable" hi={`${inr(CFG.inst)} − dividend`} value={inr(round2(c.payableExact))} />
-                    <LedgerRow op="=" label="Payable" hi={`rounded up to ${inr(ROUND_TO)}`} value={inr(c.payable)} strong />
-                    <LedgerRow op="+" label="Rounding extra to promoter" hi={`${CFG.members} × ${inr(round2(c.payable - c.payableExact))}`} value={inr(c.roundExtra)} tone="gold" />
+                    <LedgerRow op="" label={tr("Discount (dividend pot)", "बोली (लाभांश पॉट)")} hi="" value={inr(c.dividendPot)} />
+                    <LedgerRow op="−" label={tr("Total bonus", "कुल बोनस")} hi="" value={inr(BONUS_TOTAL)} tone="gold" />
+                    <LedgerRow op="=" label={tr("Net dividend", "शुद्ध लाभांश")} hi="" value={inr(c.netDividend)} strong tone={c.netDividend < 0 ? "warn" : ""} />
+                    <LedgerRow op="÷" label={tr(`${CFG.members} members`, `${CFG.members} सदस्य`)} hi="" value={inr(round2(c.perExact)) + tr(" each", " प्रति सदस्य")} />
+                    <LedgerRow op="" label={tr("Exact payable", "सटीक देय")} hi={tr(`${inr(CFG.inst)} − dividend`, `${inr(CFG.inst)} − लाभांश`)} value={inr(round2(c.payableExact))} />
+                    <LedgerRow op="=" label={tr("Payable", "देय")} hi={tr(`rounded up to ${inr(ROUND_TO)}`, `${inr(ROUND_TO)} तक ऊपर राउंड`)} value={inr(c.payable)} strong />
+                    <LedgerRow op="+" label={tr("Rounding extra to promoter", "राउंडिंग का अतिरिक्त प्रमोटर को")} hi={`${CFG.members} × ${inr(round2(c.payable - c.payableExact))}`} value={inr(c.roundExtra)} tone="gold" />
                   </div>
                 ) : (
-                  <p className="mt-3 text-muted text-[14px]">Winning discount daalte hi poora hisaab yahan dikhega. Enter the winning discount to see the breakdown.</p>
+                  <p className="mt-3 text-muted text-[14px]">{tr("Enter the winning discount to see the full breakdown here.", "जीतने वाली बोली डालते ही पूरा हिसाब यहाँ दिखेगा।")}</p>
                 )}
               </div>
               <div className="md:col-span-2 bg-surface border border-line rounded-2xl p-4 sm:p-5 min-w-0">
-                <h2 className="font-bold">Bonus list <span className="text-muted font-medium text-sm">· बोनस</span></h2>
-                {isPromoter ? <p className="mt-3 text-muted text-[14px]">Promoter month mein bonus nahi milta.</p> : (
+                <h2 className="font-bold">{tr("Bonus list", "बोनस सूची")}</h2>
+                {isPromoter ? <p className="mt-3 text-muted text-[14px]">{tr("No bonus in the promoter month.", "प्रमोटर महीने में बोनस नहीं मिलता।")}</p> : (
                 <ul className="mt-3 flex flex-col gap-2">
                   {BONUS.map((b, i) => (
                     <li key={b.rank} className="flex items-center gap-3 bg-surface2 rounded-xl p-2.5">
-                      <span className="num w-9 h-9 rounded-full bg-goldSoft text-gold grid place-items-center text-[13px] font-semibold shrink-0">{b.rank}</span>
-                      <span className="flex-1 min-w-0 truncate">{month.callers[i] || <span className="text-muted">Not entered</span>}</span>
+                      <span className="num w-9 h-9 rounded-full bg-goldSoft text-gold grid place-items-center text-[12px] font-semibold shrink-0">{rankName(i)}</span>
+                      <span className="flex-1 min-w-0 truncate">{month.callers[i] || <span className="text-muted">{tr("Not entered", "नहीं डाला")}</span>}</span>
                       <span className="num font-semibold text-gold">{inr(b.amt)}</span>
                     </li>
                   ))}
-                  <li className="flex justify-between pt-2 border-t border-line font-bold"><span>Total bonus</span><span className="num">{inr(BONUS_TOTAL)}</span></li>
+                  <li className="flex justify-between pt-2 border-t border-line font-bold"><span>{tr("Total bonus", "कुल बोनस")}</span><span className="num">{inr(BONUS_TOTAL)}</span></li>
                 </ul>
                 )}
                 {winner && (
                   <div className="mt-4 flex items-center gap-3 bg-accentSoft rounded-xl p-3">
                     <Icon name="trophy" className="w-5 h-5 text-accent shrink-0" />
-                    <div className="min-w-0"><p className="text-[12px] text-muted">{isPromoter ? "Promoter · पॉट मिला" : "Winner · पॉट मिला"}</p><p className="font-bold truncate">{winner.name}</p></div>
+                    <div className="min-w-0"><p className="text-[12px] text-muted">{isPromoter ? tr("Promoter · got the pot", "प्रमोटर · पॉट मिला") : tr("Winner · got the pot", "विजेता · पॉट मिला")}</p><p className="font-bold truncate">{winner.name}</p></div>
                   </div>
                 )}
               </div>
@@ -776,17 +792,17 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
         <section className="bg-surface border border-line rounded-2xl" aria-label="Members">
           <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 border-b border-line">
             <div className="flex-1">
-              <h2 className="font-bold text-[17px]">Members <span className="text-muted font-medium text-sm">· सदस्य · Month {m}</span></h2>
-              <p className="text-[13px] text-muted">Tick “Paid” to fill the payable amount automatically. Amount can be changed.</p>
+              <h2 className="font-bold text-[17px]">{tr("Members", "सदस्य")} <span className="text-muted font-medium text-sm">· {tr("Month", "महीना")} {m}</span></h2>
+              <p className="text-[13px] text-muted">{tr("Tick “Paid” to fill the payable amount automatically. Amount can be changed.", "“जमा” पर टिक करते ही देय रकम अपने आप भर जाएगी। रकम बदली जा सकती है।")}</p>
             </div>
             <div className="flex gap-2 w-full sm:w-auto">
               <label className="relative flex-1 sm:w-64" htmlFor="search">
-                <span className="sr-only">Search member</span>
+                <span className="sr-only">{tr("Search member", "सदस्य खोजें")}</span>
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"><Icon name="search" className="w-4 h-4" /></span>
-                <input id="search" className="field !pl-9" placeholder="Search name / naam khojein" value={query} onChange={(e) => setQuery(e.target.value)} />
+                <input id="search" className="field !pl-9" placeholder={tr("Search name or phone", "नाम या फ़ोन खोजें")} value={query} onChange={(e) => setQuery(e.target.value)} />
               </label>
               <button onClick={() => setEditMembers((v) => !v)} className={"shrink-0 inline-flex items-center gap-1.5 px-3 rounded-xl border font-semibold text-[14px] " + (editMembers ? "bg-accent text-onAccent border-transparent" : "bg-surface2 border-line")}>
-                <Icon name="edit" className="w-4 h-4" /> {editMembers ? "Done" : "Edit"}
+                <Icon name="edit" className="w-4 h-4" /> {editMembers ? tr("Done", "हो गया") : tr("Edit", "बदलें")}
               </button>
             </div>
           </div>
@@ -796,11 +812,11 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
             <table className="w-full text-[14.5px]">
               <thead className="bg-surface2 text-left">
                 <tr className="text-muted">
-                  <th className="label px-5 py-3 w-16">Sr No</th>
-                  <th className="label px-3 py-3">Member Name</th>
-                  <th className="label px-3 py-3">Phone</th>
-                  <th className="label px-3 py-3 text-center">Paid</th>
-                  <th className="label px-5 py-3 text-right w-44">Amount Paid</th>
+                  <th className="label px-5 py-3 w-16">{tr("Sr No", "क्रम")}</th>
+                  <th className="label px-3 py-3">{tr("Member Name", "सदस्य का नाम")}</th>
+                  <th className="label px-3 py-3">{tr("Phone", "फ़ोन")}</th>
+                  <th className="label px-3 py-3 text-center">{tr("Paid", "जमा")}</th>
+                  <th className="label px-5 py-3 text-right w-44">{tr("Amount Paid", "जमा रकम")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -812,22 +828,22 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
                     <tr key={x.id} className="border-t border-line">
                       <td className="px-5 py-2.5 num text-muted">{String(x.id).padStart(2, "0")}</td>
                       <td className="px-3 py-2.5">
-                        {editMembers ? <input id={"d-name-" + x.id} aria-label="Member name" className="field !py-1.5" value={x.name} onChange={(e) => updateMember(x.id, { name: e.target.value })} /> : (
+                        {editMembers ? <input id={"d-name-" + x.id} aria-label={tr("Member name", "सदस्य का नाम")} className="field !py-1.5" value={x.name} onChange={(e) => updateMember(x.id, { name: e.target.value })} /> : (
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold">{x.name}</span>
-                            {isWinner && <span className="text-[11.5px] px-2 py-0.5 rounded-full bg-accentSoft text-accent font-semibold">Winner</span>}
-                            {lifted && !isWinner && <span className="text-[11.5px] px-2 py-0.5 rounded-full bg-surface2 border border-line text-muted">Lifted M{lifted}</span>}
+                            {isWinner && <span className="text-[11.5px] px-2 py-0.5 rounded-full bg-accentSoft text-accent font-semibold">{tr("Winner", "विजेता")}</span>}
+                            {lifted && !isWinner && <span className="text-[11.5px] px-2 py-0.5 rounded-full bg-surface2 border border-line text-muted">{tr(`Lifted M${lifted}`, `M${lifted} में उठाया`)}</span>}
                           </div>
                         )}
                       </td>
                       <td className="px-3 py-2.5 num text-[13.5px]">
-                        {editMembers ? <input id={"d-phone-" + x.id} aria-label="Phone" className="field !py-1.5 num" inputMode="tel" value={x.phone} onChange={(e) => updateMember(x.id, { phone: e.target.value })} /> : (x.phone || <span className="text-muted">—</span>)}
+                        {editMembers ? <input id={"d-phone-" + x.id} aria-label={tr("Phone", "फ़ोन")} className="field !py-1.5 num" inputMode="tel" value={x.phone} onChange={(e) => updateMember(x.id, { phone: e.target.value })} /> : (x.phone || <span className="text-muted">—</span>)}
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <input id={"d-paid-" + x.id} disabled={locked} type="checkbox" className="chk" aria-label={"Paid: " + x.name} checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
+                        <input id={"d-paid-" + x.id} disabled={locked} type="checkbox" className="chk" aria-label={tr("Paid: ", "जमा: ") + x.name} checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
                       </td>
                       <td className="px-5 py-2.5 text-right">
-                        <input id={"d-amt-" + x.id} disabled={locked} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num text-right" type="number" inputMode="decimal" placeholder="0"
+                        <input id={"d-amt-" + x.id} disabled={locked} aria-label={tr("Amount paid by ", "जमा रकम: ") + x.name} className="field !py-1.5 num text-right" type="number" inputMode="decimal" placeholder="0"
                           value={p.amount || ""} onChange={(e) => setPayment(x.id, { amount: e.target.value, paid: e.target.value !== "" && Number(e.target.value) > 0 })} />
                       </td>
                     </tr>
@@ -836,7 +852,7 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-line bg-surface2 font-bold">
-                  <td className="px-5 py-3" colSpan={3}>Total · {paidCount}/{CFG.members} paid</td>
+                  <td className="px-5 py-3" colSpan={3}>{tr("Total", "कुल")} · {paidCount}/{CFG.members} {tr("paid", "जमा")}</td>
                   <td></td>
                   <td className="px-5 py-3 text-right num">{inr(round2(collectedThisMonth))}</td>
                 </tr>
@@ -857,73 +873,73 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
                     <div className="flex-1 min-w-0">
                       {editMembers ? (
                         <div className="flex flex-col gap-1.5">
-                          <input id={"m-name-" + x.id} aria-label="Member name" className="field !py-1.5" value={x.name} onChange={(e) => updateMember(x.id, { name: e.target.value })} />
-                          <input id={"m-phone-" + x.id} aria-label="Phone" className="field !py-1.5 num" inputMode="tel" placeholder="Phone" value={x.phone} onChange={(e) => updateMember(x.id, { phone: e.target.value })} />
+                          <input id={"m-name-" + x.id} aria-label={tr("Member name", "सदस्य का नाम")} className="field !py-1.5" value={x.name} onChange={(e) => updateMember(x.id, { name: e.target.value })} />
+                          <input id={"m-phone-" + x.id} aria-label={tr("Phone", "फ़ोन")} className="field !py-1.5 num" inputMode="tel" placeholder={tr("Phone", "फ़ोन")} value={x.phone} onChange={(e) => updateMember(x.id, { phone: e.target.value })} />
                         </div>
                       ) : (
                         <>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="font-semibold truncate">{x.name}</span>
-                            {isWinner && <span className="text-[11px] px-2 py-0.5 rounded-full bg-accentSoft text-accent font-semibold">Winner</span>}
+                            {isWinner && <span className="text-[11px] px-2 py-0.5 rounded-full bg-accentSoft text-accent font-semibold">{tr("Winner", "विजेता")}</span>}
                             {lifted && !isWinner && <span className="text-[11px] px-2 py-0.5 rounded-full bg-surface2 border border-line text-muted">M{lifted}</span>}
                           </div>
-                          <div className="num text-[12.5px] text-muted">{x.phone || "No phone"}</div>
+                          <div className="num text-[12.5px] text-muted">{x.phone || tr("No phone", "फ़ोन नहीं")}</div>
                         </>
                       )}
                     </div>
                     <label className="flex flex-col items-center gap-0.5 shrink-0" htmlFor={"m-paid-" + x.id}>
                       <input id={"m-paid-" + x.id} disabled={locked} type="checkbox" className="chk" checked={!!p.paid} onChange={(e) => togglePaid(x.id, e.target.checked)} />
-                      <span className={"text-[11px] font-semibold " + (p.paid ? "text-accent" : "text-muted")}>{p.paid ? "Paid" : "Pending"}</span>
+                      <span className={"text-[11px] font-semibold " + (p.paid ? "text-accent" : "text-muted")}>{p.paid ? tr("Paid", "जमा") : tr("Pending", "बाकी")}</span>
                     </label>
                   </div>
                   <div className="flex items-center gap-2 pl-12">
-                    <span className="text-[12.5px] text-muted shrink-0">Amount ₹</span>
-                    <input id={"m-amt-" + x.id} disabled={locked} aria-label={"Amount paid by " + x.name} className="field !py-1.5 num" type="number" inputMode="decimal" placeholder="0"
+                    <span className="text-[12.5px] text-muted shrink-0">{tr("Amount ₹", "रकम ₹")}</span>
+                    <input id={"m-amt-" + x.id} disabled={locked} aria-label={tr("Amount paid by ", "जमा रकम: ") + x.name} className="field !py-1.5 num" type="number" inputMode="decimal" placeholder="0"
                       value={p.amount || ""} onChange={(e) => setPayment(x.id, { amount: e.target.value, paid: e.target.value !== "" && Number(e.target.value) > 0 })} />
                   </div>
                 </li>
               );
             })}
-            <li className="px-4 py-3 bg-surface2 flex justify-between font-bold rounded-b-2xl"><span>{paidCount}/{CFG.members} paid</span><span className="num">{inr(round2(collectedThisMonth))}</span></li>
+            <li className="px-4 py-3 bg-surface2 flex justify-between font-bold rounded-b-2xl"><span>{paidCount}/{CFG.members} {tr("paid", "जमा")}</span><span className="num">{inr(round2(collectedThisMonth))}</span></li>
           </ul>
-          {visible.length === 0 && <p className="p-6 text-center text-muted">“{query}” naam ka koi member nahi mila.</p>}
+          {visible.length === 0 && <p className="p-6 text-center text-muted">{tr(`No member found for “${query}”.`, `“${query}” नाम का कोई सदस्य नहीं मिला।`)}</p>}
         </section>
 
         {/* Consolidated report */}
         <section className="bg-surface border border-line rounded-2xl" aria-label="Consolidated report">
           <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 border-b border-line">
             <div className="flex-1 min-w-0">
-              <h2 className="font-bold text-[17px]">Consolidated Report <span className="text-muted font-medium text-sm">· समेकित रिपोर्ट</span></h2>
-              <p className="text-[13px] text-muted">Sirf submit (locked) mahine · {report.months} of {CFG.members} complete</p>
+              <h2 className="font-bold text-[17px]">{tr("Consolidated Report", "समेकित रिपोर्ट")}</h2>
+              <p className="text-[13px] text-muted">{tr(`Submitted (locked) months only · ${report.months} of ${CFG.members} complete`, `सिर्फ़ सबमिट (लॉक) महीने · ${CFG.members} में से ${report.months} पूरे`)}</p>
             </div>
             {report.months > 0 && (
               <div className="flex gap-2">
-                <a href={reportWaHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold bg-accent text-onAccent"><Icon name="wa" className="w-4 h-4" /> Report</a>
-                <button onClick={exportReportPdf} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border border-line bg-surface2 hover:border-accent"><Icon name="pdf" className="w-4 h-4" /> Report PDF</button>
+                <a href={reportWaHref} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold bg-accent text-onAccent"><Icon name="wa" className="w-4 h-4" /> {tr("Report", "रिपोर्ट")}</a>
+                <button onClick={exportReportPdf} className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl font-semibold border border-line bg-surface2 hover:border-accent"><Icon name="pdf" className="w-4 h-4" /> {tr("Report PDF", "रिपोर्ट PDF")}</button>
               </div>
             )}
           </div>
           {report.months === 0 ? (
-            <p className="p-6 text-center text-muted text-[14px]">Abhi koi mahina submit nahi hua. Mahine ka hisaab poora karke "Submit / Month close" dabayein, report yahan banegi.</p>
+            <p className="p-6 text-center text-muted text-[14px]">{tr('No month has been submitted yet. Complete a month and tap "Submit / Close month" — the report will appear here.', 'अभी कोई महीना सबमिट नहीं हुआ। महीने का हिसाब पूरा करके "सबमिट / महीना बंद" दबाएँ, रिपोर्ट यहाँ बनेगी।')}</p>
           ) : (
             <>
               <div className="p-4 sm:p-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Avg boli %</p><p className="num text-xl font-semibold">{pct(report.avgBoliPct)}</p><p className="text-[12px] text-muted">High {pct(report.maxBoliPct)} · Low {pct(report.minBoliPct)}</p></div>
-                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Member margin (bachat)</p><p className="num text-xl font-semibold text-accent">{pct(report.savePct)}</p><p className="text-[12px] text-muted">Diya {inr(report.memberPaid)} of {inr(report.memberGross)}</p></div>
-                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Dividend / member</p><p className="num text-xl font-semibold">{inr(report.dividendPerMember)}</p><p className="text-[12px] text-muted">Total boli {inr(report.totalBoli)}</p></div>
-                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">Collection</p><p className="num text-xl font-semibold">{pct(report.collPct)}</p><p className="text-[12px] text-muted">{inr(round2(report.collected))} of {inr(report.expected)}</p></div>
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">{tr("Avg boli %", "औसत बोली %")}</p><p className="num text-xl font-semibold">{pct(report.avgBoliPct)}</p><p className="text-[12px] text-muted">{tr("High", "सबसे ऊँची")} {pct(report.maxBoliPct)} · {tr("Low", "सबसे कम")} {pct(report.minBoliPct)}</p></div>
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">{tr("Member saving", "सदस्य की बचत")}</p><p className="num text-xl font-semibold text-accent">{pct(report.savePct)}</p><p className="text-[12px] text-muted">{tr(`Paid ${inr(report.memberPaid)} of ${inr(report.memberGross)}`, `${inr(report.memberGross)} में से ${inr(report.memberPaid)} दिए`)}</p></div>
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">{tr("Dividend / member", "लाभांश / सदस्य")}</p><p className="num text-xl font-semibold">{inr(report.dividendPerMember)}</p><p className="text-[12px] text-muted">{tr("Total boli", "कुल बोली")} {inr(report.totalBoli)}</p></div>
+                <div className="bg-surface2 rounded-xl p-3 min-w-0"><p className="label">{tr("Collection", "वसूली")}</p><p className="num text-xl font-semibold">{pct(report.collPct)}</p><p className="text-[12px] text-muted">{inr(round2(report.collected))} {tr("of", "में से")} {inr(report.expected)}</p></div>
               </div>
               <div className="overflow-x-auto border-t border-line">
                 <table className="w-full text-[13.5px] tnum">
                   <thead className="bg-surface2 text-left">
                     <tr>
-                      {["Month", "Winner", "Boli", "Boli %", "Winner payout", "Dividend / member", "Dividend %", "Payable", "Promoter extra", "Collected"].map((h) => <th key={h} className="label px-3 py-2.5 whitespace-nowrap">{h}</th>)}
+                      {(LANG === "hi" ? ["महीना", "विजेता", "बोली", "बोली %", "विजेता भुगतान", "लाभांश / सदस्य", "लाभांश %", "देय", "प्रमोटर अतिरिक्त", "जमा"] : ["Month", "Winner", "Boli", "Boli %", "Winner payout", "Dividend / member", "Dividend %", "Payable", "Promoter extra", "Collected"]).map((h) => <th key={h} className="label px-3 py-2.5 whitespace-nowrap">{h}</th>)}
                     </tr>
                   </thead>
                   <tbody>
                     {report.rows.map((x) => (
                       <tr key={x.k} className="border-t border-line">
-                        <td className="px-3 py-2 num whitespace-nowrap">M{x.k}{x.promoter && <span className="ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full bg-goldSoft text-gold font-sans font-semibold">Promoter</span>}</td>
+                        <td className="px-3 py-2 num whitespace-nowrap">M{x.k}{x.promoter && <span className="ml-1.5 text-[11px] px-1.5 py-0.5 rounded-full bg-goldSoft text-gold font-sans font-semibold">{tr("Promoter", "प्रमोटर")}</span>}</td>
                         <td className="px-3 py-2 whitespace-nowrap font-semibold">{x.winner}</td>
                         <td className="px-3 py-2 num text-right whitespace-nowrap">{x.promoter ? "—" : inr(x.D)}</td>
                         <td className="px-3 py-2 num text-right">{x.promoter ? "—" : pct(x.boliPct)}</td>
@@ -938,9 +954,9 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-line bg-surface2 font-bold">
-                      <td className="px-3 py-2.5" colSpan={2}>Total · {report.months} months</td>
+                      <td className="px-3 py-2.5" colSpan={2}>{tr(`Total · ${report.months} months`, `कुल · ${report.months} महीने`)}</td>
                       <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(report.totalBoli)}</td>
-                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{pct(report.avgBoliPct)} avg</td>
+                      <td className="px-3 py-2.5 num text-right whitespace-nowrap">{pct(report.avgBoliPct)} {tr("avg", "औसत")}</td>
                       <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(report.winnerPaid)}</td>
                       <td className="px-3 py-2.5 num text-right whitespace-nowrap">{inr(report.dividendPerMember)}</td>
                       <td className="px-3 py-2.5 num text-right text-accent">{pct(report.savePct)}</td>
@@ -951,19 +967,21 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
                   </tfoot>
                 </table>
               </div>
-              <p className="px-4 sm:px-5 py-3 text-[12px] text-muted border-t border-line">Boli % = boli ÷ pot · Dividend % = dividend ÷ {inr(CFG.inst)} kisht · Member margin = (kul kisht − asal diya) ÷ kul kisht · Promoter income ab tak: <b className="num">{inr(report.promoterIncome)}</b></p>
+              <p className="px-4 sm:px-5 py-3 text-[12px] text-muted border-t border-line">{tr(`Boli % = boli ÷ pot · Dividend % = dividend ÷ ${inr(CFG.inst)} installment · Member saving = (total installments − actually paid) ÷ total installments · Promoter income so far: `, `बोली % = बोली ÷ पॉट · लाभांश % = लाभांश ÷ ${inr(CFG.inst)} किश्त · सदस्य की बचत = (कुल किश्त − असल में दिया) ÷ कुल किश्त · प्रमोटर की आय अब तक: `)}<b className="num">{inr(report.promoterIncome)}</b></p>
             </>
           )}
         </section>
 
-        <p className="text-[12px] text-muted text-center pb-6">Formula: Winner = {inr(CFG.pot)} − discount · Dividend = (discount − {inr(BONUS_TOTAL)} bonus) ÷ {CFG.members} · Payable = {inr(CFG.inst)} − dividend, rounded up to {inr(ROUND_TO)} (extra to promoter) · No foreman commission{PROMOTER_MONTH ? ` · Month ${PROMOTER_MONTH}: promoter month, everyone pays full ${inr(CFG.inst)}` : ""}</p>
-        <p className="text-[12px] text-muted text-center pb-6 -mt-4">Free &amp; open-source kitty manager · <a className="text-accent font-semibold" href="https://github.com/Kumar3216549/om-kitty" target="_blank" rel="noopener noreferrer">Get the code on GitHub</a></p>
+        <p className="text-[12px] text-muted text-center pb-6">{tr(
+          `Formula: Winner = ${inr(CFG.pot)} − discount · Dividend = (discount − ${inr(BONUS_TOTAL)} bonus) ÷ ${CFG.members} · Payable = ${inr(CFG.inst)} − dividend, rounded up to ${inr(ROUND_TO)} (extra to promoter) · No foreman commission` + (PROMOTER_MONTH ? ` · Month ${PROMOTER_MONTH}: promoter month, everyone pays full ${inr(CFG.inst)}` : ""),
+          `फ़ॉर्मूला: विजेता = ${inr(CFG.pot)} − बोली · लाभांश = (बोली − ${inr(BONUS_TOTAL)} बोनस) ÷ ${CFG.members} · देय = ${inr(CFG.inst)} − लाभांश, ${inr(ROUND_TO)} तक ऊपर राउंड (अतिरिक्त प्रमोटर को) · कोई फ़ोरमैन कमीशन नहीं` + (PROMOTER_MONTH ? ` · महीना ${PROMOTER_MONTH}: प्रमोटर महीना, सब पूरा ${inr(CFG.inst)} देंगे` : ""))}</p>
+        <p className="text-[12px] text-muted text-center pb-6 -mt-4">{tr("Free & open-source kitty manager · ", "मुफ़्त और ओपन-सोर्स किटी मैनेजर · ")}<a className="text-accent font-semibold" href="https://github.com/Kumar3216549/om-kitty" target="_blank" rel="noopener noreferrer">{tr("Get the code on GitHub", "GitHub पर कोड देखें")}</a></p>
       </main>
 
       {/* Mobile sticky share */}
       <div className="sm:hidden fixed left-0 right-0 bottom-0 z-30 bg-surface border-t border-line px-4 pt-2 flex gap-2" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}>
         <a href={waHref} target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold bg-accent text-onAccent"><Icon name="wa" className="w-4 h-4" /> WhatsApp</a>
-        <button onClick={exportPdf} className={"flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold border border-line bg-surface2 " + (true ? "" : "opacity-50")}><Icon name="pdf" className="w-4 h-4" /> PDF</button>
+        <button onClick={exportPdf} className={"flex-1 inline-flex items-center justify-center gap-2 rounded-xl py-2.5 font-semibold border border-line bg-surface2 " + (true ? "" : "opacity-50")}><Icon name="pdf" className="w-4 h-4" /> {tr("PDF", "PDF")}</button>
       </div>
       <div className="sm:hidden h-20" />
 
@@ -977,9 +995,9 @@ function App({ kitty, kitties, onSwitch, onNew, onEdit }) {
 
 /* ---------- Kitty setup (create / edit) ---------- */
 function Field({ id, label, hi, children }) {
-  return <label className="flex flex-col gap-1.5" htmlFor={id}><span className="label">{label}{hi ? " · " + hi : ""}</span>{children}</label>;
+  return <label className="flex flex-col gap-1.5" htmlFor={id}><span className="label">{hi ? tr(label, hi) : label}</span>{children}</label>;
 }
-function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete }) {
+function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete, onLang }) {
   const [f, setF] = useState(() => ({
     title: initial.title || "", members: String(initial.members || 20), inst: String(initial.inst || 5000),
     b2: String((initial.bonus || DEFAULT_BONUS)[0]), b3: String((initial.bonus || DEFAULT_BONUS)[1]), b4: String((initial.bonus || DEFAULT_BONUS)[2]),
@@ -992,16 +1010,16 @@ function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete }) {
   const n = Math.max(0, Math.floor(Number(f.members) || 0));
   const inst = Number(f.inst) || 0;
   const nameList = f.names.split("\n").map((x) => x.trim());
-  const names = Array.from({ length: n }, (_, i) => nameList[i] || ("Member " + (i + 1)));
+  const names = Array.from({ length: n }, (_, i) => nameList[i] || (tr("Member ", "सदस्य ") + (i + 1)));
   const extraNames = nameList.filter(Boolean).length - n;
 
   const submit = (e) => {
     e.preventDefault();
-    if (!f.title.trim()) return setErr("Kitty ka naam daalein · Please enter a kitty name.");
-    if (n < 2 || n > 100) return setErr("Members 2 se 100 ke beech hone chahiye.");
-    if (inst <= 0) return setErr("Monthly installment (kisht) daalein.");
+    if (!f.title.trim()) return setErr(tr("Please enter a kitty name.", "किटी का नाम डालें।"));
+    if (n < 2 || n > 100) return setErr(tr("Members must be between 2 and 100.", "सदस्य 2 से 100 के बीच होने चाहिए।"));
+    if (inst <= 0) return setErr(tr("Please enter the monthly installment.", "महीने की किश्त डालें।"));
     const pm = Number(f.promoterMonth) || 0;
-    if (pm < 0 || pm > n) return setErr(`Promoter month 0 se ${n} ke beech ho.`);
+    if (pm < 0 || pm > n) return setErr(tr(`Promoter month must be between 0 and ${n}.`, `प्रमोटर महीना 0 से ${n} के बीच हो।`));
     onSave({
       title: f.title.trim(), members: n, inst, bonus: [Number(f.b2) || 0, Number(f.b3) || 0, Number(f.b4) || 0],
       promoterMonth: pm, promoterId: pm ? String(Math.min(n, Math.max(1, Number(f.promoterId) || 1))) : "", names,
@@ -1014,55 +1032,56 @@ function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete }) {
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-accent text-onAccent grid place-items-center font-extrabold text-lg shrink-0" aria-hidden="true">+</div>
           <div className="min-w-0 flex-1">
-            <h1 className="font-extrabold text-[17px] sm:text-xl leading-tight">{isNew ? "Nayi kitty banayein · New kitty" : "Kitty settings"}</h1>
-            <p className="text-[12.5px] text-muted leading-tight">Same rules for every kitty · boli (discount) kitty, caller bonus, ₹100 rounding</p>
+            <h1 className="font-extrabold text-[17px] sm:text-xl leading-tight">{isNew ? tr("New kitty", "नई किटी बनाएँ") : tr("Kitty settings", "किटी सेटिंग")}</h1>
+            <p className="text-[12.5px] text-muted leading-tight">{tr("Same rules for every kitty · boli (discount) kitty, caller bonus, ₹100 rounding", "हर किटी के नियम एक जैसे · बोली वाली किटी, कॉलर बोनस, ₹100 राउंडिंग")}</p>
           </div>
+          <LangToggle onToggle={onLang} />
         </div>
       </header>
       <form onSubmit={submit} className="max-w-3xl mx-auto px-4 py-5 flex flex-col gap-5">
         <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 grid sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <Field id="k-title" label="Kitty name" hi="किटी का नाम">
-              <input id="k-title" className="field" placeholder="e.g. Shiv Kitty - 1 Lakh" value={f.title} onChange={set("title")} />
+              <input id="k-title" className="field" placeholder={tr("e.g. Shiv Kitty - 1 Lakh", "जैसे शिव किटी - 1 लाख")} value={f.title} onChange={set("title")} />
             </Field>
           </div>
-          <Field id="k-members" label="Members (= months)" hi="सदस्य">
+          <Field id="k-members" label="Members (= months)" hi="सदस्य (= महीने)">
             <input id="k-members" className="field num" type="number" inputMode="numeric" min="2" max="100" disabled={!isNew} value={f.members} onChange={set("members")} />
           </Field>
-          <Field id="k-inst" label="Monthly installment (₹)" hi="किश्त">
+          <Field id="k-inst" label="Monthly installment (₹)" hi="महीने की किश्त (₹)">
             <input id="k-inst" className="field num" type="number" inputMode="numeric" min="1" step="any" value={f.inst} onChange={set("inst")} />
           </Field>
           <div className="sm:col-span-2 bg-accentSoft rounded-xl p-3 text-[14px]">
-            Total pot · कुल पॉट: <b className="num">{inr(n * inst)}</b> <span className="text-muted">({n} × {inr(inst)} every month, {n} months)</span>
-            {!isNew && <span className="block text-[12.5px] text-muted mt-1">Members count can't change after a kitty starts. Names and phones are edited from the Members list.</span>}
+            {tr("Total pot", "कुल पॉट")}: <b className="num">{inr(n * inst)}</b> <span className="text-muted">{tr(`(${n} × ${inr(inst)} every month, ${n} months)`, `(हर महीने ${n} × ${inr(inst)}, ${n} महीने)`)}</span>
+            {!isNew && <span className="block text-[12.5px] text-muted mt-1">{tr("Members count can't change after a kitty starts. Names and phones are edited from the Members list.", "किटी शुरू होने के बाद सदस्य संख्या नहीं बदलती। नाम और फ़ोन सदस्य सूची से बदलें।")}</span>}
           </div>
         </section>
 
         {isNew && (
           <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 flex flex-col gap-2">
-            <Field id="k-names" label="Member names, one per line" hi="सदस्यों के नाम">
+            <Field id="k-names" label="Member names, one per line" hi="सदस्यों के नाम, हर लाइन में एक">
               <textarea id="k-names" className="field min-h-[180px]" placeholder={"Ramesh\nSuresh\nMahesh\n…"} value={f.names} onChange={set("names")} />
             </Field>
-            <p className="text-[12.5px] text-muted">{nameList.filter(Boolean).length} of {n} names entered. Empty ones become "Member 1, Member 2…" and you can rename them later.{extraNames > 0 ? ` ${extraNames} extra name(s) will be ignored.` : ""}</p>
+            <p className="text-[12.5px] text-muted">{tr(`${nameList.filter(Boolean).length} of ${n} names entered. Empty ones become "Member 1, Member 2…" and you can rename them later.`, `${n} में से ${nameList.filter(Boolean).length} नाम डाले गए। खाली नाम "सदस्य 1, सदस्य 2…" बनेंगे, बाद में बदल सकते हैं।`)}{extraNames > 0 ? tr(` ${extraNames} extra name(s) will be ignored.`, ` ${extraNames} अतिरिक्त नाम छोड़ दिए जाएँगे।`) : ""}</p>
           </section>
         )}
 
         <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 grid sm:grid-cols-3 gap-4">
-          <p className="sm:col-span-3 font-bold">Caller bonus · बोनस <span className="text-muted font-medium text-sm">(paid from the boli before dividend)</span></p>
-          <Field id="k-b2" label="2nd caller ₹"><input id="k-b2" className="field num" type="number" min="0" value={f.b2} onChange={set("b2")} /></Field>
-          <Field id="k-b3" label="3rd caller ₹"><input id="k-b3" className="field num" type="number" min="0" value={f.b3} onChange={set("b3")} /></Field>
-          <Field id="k-b4" label="4th caller ₹"><input id="k-b4" className="field num" type="number" min="0" value={f.b4} onChange={set("b4")} /></Field>
+          <p className="sm:col-span-3 font-bold">{tr("Caller bonus", "कॉलर बोनस")} <span className="text-muted font-medium text-sm">{tr("(paid from the boli before dividend)", "(लाभांश से पहले बोली में से दिया जाता है)")}</span></p>
+          <Field id="k-b2" label="2nd caller ₹" hi="दूसरा कॉलर ₹"><input id="k-b2" className="field num" type="number" min="0" value={f.b2} onChange={set("b2")} /></Field>
+          <Field id="k-b3" label="3rd caller ₹" hi="तीसरा कॉलर ₹"><input id="k-b3" className="field num" type="number" min="0" value={f.b3} onChange={set("b3")} /></Field>
+          <Field id="k-b4" label="4th caller ₹" hi="चौथा कॉलर ₹"><input id="k-b4" className="field num" type="number" min="0" value={f.b4} onChange={set("b4")} /></Field>
         </section>
 
         <section className="bg-surface border border-line rounded-2xl p-4 sm:p-5 grid sm:grid-cols-2 gap-4">
-          <p className="sm:col-span-2 font-bold">Promoter month · प्रमोटर <span className="text-muted font-medium text-sm">(no boli; promoter takes the full pot, everyone pays the full kisht)</span></p>
-          <Field id="k-pm" label="Promoter month">
+          <p className="sm:col-span-2 font-bold">{tr("Promoter month", "प्रमोटर महीना")} <span className="text-muted font-medium text-sm">{tr("(no boli; promoter takes the full pot, everyone pays the full installment)", "(बोली नहीं; पूरा पॉट प्रमोटर को, सब पूरी किश्त देंगे)")}</span></p>
+          <Field id="k-pm" label="Promoter month" hi="प्रमोटर महीना">
             <select id="k-pm" className="field" value={f.promoterMonth} onChange={set("promoterMonth")}>
-              <option value="0">No promoter month</option>
-              {Array.from({ length: n }, (_, i) => <option key={i} value={i + 1}>Month {i + 1}</option>)}
+              <option value="0">{tr("No promoter month", "कोई प्रमोटर महीना नहीं")}</option>
+              {Array.from({ length: n }, (_, i) => <option key={i} value={i + 1}>{tr("Month", "महीना")} {i + 1}</option>)}
             </select>
           </Field>
-          <Field id="k-pid" label="Promoter (member)">
+          <Field id="k-pid" label="Promoter (member)" hi="प्रमोटर (सदस्य)">
             <select id="k-pid" className="field" disabled={f.promoterMonth === "0"} value={f.promoterId} onChange={set("promoterId")}>
               {(isNew ? names : (initial.memberList || names)).map((nm, i) => <option key={i} value={i + 1}>{i + 1}. {nm}</option>)}
             </select>
@@ -1071,18 +1090,18 @@ function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete }) {
 
         {err && <p className="text-[14px] bg-warnSoft text-warn rounded-xl p-3">{err}</p>}
         <div className="flex flex-wrap gap-2">
-          <button type="submit" className="px-5 py-2.5 rounded-xl font-semibold bg-accent text-onAccent">{isNew ? "Kitty banayein · Create kitty" : "Save settings"}</button>
-          {onCancel && <button type="button" onClick={onCancel} className="px-5 py-2.5 rounded-xl font-semibold bg-surface border border-line">Cancel</button>}
+          <button type="submit" className="px-5 py-2.5 rounded-xl font-semibold bg-accent text-onAccent">{isNew ? tr("Create kitty", "किटी बनाएँ") : tr("Save settings", "सेटिंग सेव करें")}</button>
+          {onCancel && <button type="button" onClick={onCancel} className="px-5 py-2.5 rounded-xl font-semibold bg-surface border border-line">{tr("Cancel", "रद्द करें")}</button>}
           {!isNew && canDelete && (confirmDel ? (
             <>
-              <button type="button" onClick={onDelete} className="ml-auto px-4 py-2.5 rounded-xl font-semibold bg-warn" style={{ color: "var(--surface)" }}>Haan, delete karo</button>
-              <button type="button" onClick={() => setConfirmDel(false)} className="px-4 py-2.5 rounded-xl font-semibold bg-surface border border-line">No</button>
+              <button type="button" onClick={onDelete} className="ml-auto px-4 py-2.5 rounded-xl font-semibold bg-warn" style={{ color: "var(--surface)" }}>{tr("Yes, delete", "हाँ, हटाएँ")}</button>
+              <button type="button" onClick={() => setConfirmDel(false)} className="px-4 py-2.5 rounded-xl font-semibold bg-surface border border-line">{tr("No", "नहीं")}</button>
             </>
           ) : (
-            <button type="button" onClick={() => setConfirmDel(true)} className="ml-auto px-4 py-2.5 rounded-xl font-semibold text-warn bg-surface border border-line">Delete this kitty</button>
+            <button type="button" onClick={() => setConfirmDel(true)} className="ml-auto px-4 py-2.5 rounded-xl font-semibold text-warn bg-surface border border-line">{tr("Delete this kitty", "यह किटी हटाएँ")}</button>
           ))}
         </div>
-        <p className="text-[12.5px] text-muted">Tip: take a backup from inside the kitty before deleting. Every kitty's data stays only in this browser.</p>
+        <p className="text-[12.5px] text-muted">{tr("Tip: take a backup from inside the kitty before deleting. Every kitty's data stays only in this browser.", "सुझाव: हटाने से पहले किटी के अंदर से बैकअप ले लें। हर किटी का डेटा सिर्फ़ इसी ब्राउज़र में रहता है।")}</p>
       </form>
     </div>
   );
@@ -1092,7 +1111,14 @@ function KittySetup({ initial, isNew, canDelete, onSave, onCancel, onDelete }) {
 function Root() {
   const [reg, setReg] = useState(loadRegistry);
   const [mode, setMode] = useState(null); // null | "new" | "edit"
+  const [lang, setLang] = useState(LANG);
+  LANG = lang;
   useEffect(() => { saveRegistry(reg); }, [reg]);
+  useEffect(() => {
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    document.documentElement.lang = lang;
+  }, [lang]);
+  const toggleLang = () => setLang((l) => (l === "hi" ? "en" : "hi"));
   const active = reg.kitties.find((k) => k.id === reg.active) || reg.kitties[0];
   applyKitty(active);
 
@@ -1112,15 +1138,15 @@ function Root() {
     setMode(null);
   };
 
-  if (mode === "new") return <KittySetup isNew initial={{}} onSave={create} onCancel={() => setMode(null)} />;
+  if (mode === "new") return <KittySetup isNew initial={{}} onSave={create} onCancel={() => setMode(null)} onLang={toggleLang} />;
   if (mode === "edit") {
     let memberList = null;
     try { const s = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); if (s && Array.isArray(s.members)) memberList = s.members.map((x) => x.name); } catch (e) {}
-    return <KittySetup initial={{ ...active, memberList }} canDelete={reg.kitties.length > 1} onSave={saveEdit} onCancel={() => setMode(null)} onDelete={remove} />;
+    return <KittySetup initial={{ ...active, memberList }} canDelete={reg.kitties.length > 1} onSave={saveEdit} onCancel={() => setMode(null)} onDelete={remove} onLang={toggleLang} />;
   }
-  return <App key={active.id + ":" + JSON.stringify([active.inst, active.bonus, active.promoterMonth, active.promoterId, active.title])}
+  return <App key={active.id + ":" + lang + ":" + JSON.stringify([active.inst, active.bonus, active.promoterMonth, active.promoterId, active.title])}
     kitty={active} kitties={reg.kitties}
-    onSwitch={(id) => setReg((r) => ({ ...r, active: id }))} onNew={() => setMode("new")} onEdit={() => setMode("edit")} />;
+    onSwitch={(id) => setReg((r) => ({ ...r, active: id }))} onNew={() => setMode("new")} onEdit={() => setMode("edit")} onLang={toggleLang} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<Root />);
